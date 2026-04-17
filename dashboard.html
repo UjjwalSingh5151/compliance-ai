@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard – Clueso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090b; --bg2: #111113; --bg3: #18181b;
+      --border: rgba(255,255,255,0.08); --purple: #7c3aed;
+      --purple-light: #a78bfa; --purple-glow: rgba(124,58,237,0.35);
+      --text: #f4f4f5; --muted: #a1a1aa;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── SIDEBAR ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    aside {
+      width: 240px; flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 0;
+      position: fixed; top: 0; left: 0; bottom: 0;
+    }
+
+    .sidebar-logo {
+      padding: 20px 24px;
+      font-size: 20px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff, var(--purple-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-nav { flex: 1; padding: 16px 12px; }
+
+    .nav-section-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      color: rgba(255,255,255,0.25); text-transform: uppercase;
+      padding: 0 12px; margin: 16px 0 6px;
+    }
+    .nav-section-label:first-child { margin-top: 0; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 8px;
+      font-size: 14px; font-weight: 500; color: var(--muted);
+      cursor: pointer; transition: all .2s; margin-bottom: 2px;
+      text-decoration: none;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .nav-item.active { background: rgba(124,58,237,0.15); color: var(--purple-light); }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+    .badge {
+      margin-left: auto; font-size: 11px; font-weight: 600;
+      background: var(--purple); color: #fff;
+      padding: 1px 7px; border-radius: 99px;
+    }
+
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .user-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px;
+      cursor: pointer; transition: background .2s;
+    }
+    .user-row:hover { background: rgba(255,255,255,0.05); }
+
+    .user-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), #6d28d9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .user-name { font-size: 13px; font-weight: 600; }
+    .user-email { font-size: 11px; color: var(--muted); }
+
+    .sign-out-btn {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; padding: 8px 12px; margin-top: 6px;
+      background: none; border: none; border-radius: 8px;
+      color: var(--muted); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all .2s;
+    }
+    .sign-out-btn:hover { background: rgba(248,113,113,0.1); color: #f87171; }
+
+    /* ── MAIN ── */
+    .main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; }
+
+    .topbar {
+      height: 60px; padding: 0 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky; top: 0; z-index: 10;
+    }
+
+    .topbar-title { font-size: 16px; font-weight: 700; }
+
+    .new-video-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--purple); border: none; border-radius: 8px;
+      color: #fff; font-size: 13px; font-weight: 600;
+      padding: 8px 16px; cursor: pointer; transition: all .2s;
+      box-shadow: 0 0 20px var(--purple-glow);
+    }
+    .new-video-btn:hover { background: #6d28d9; transform: translateY(-1px); }
+
+    .content { padding: 32px; }
+
+    /* ── STATS ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px 24px;
+      transition: border-color .2s;
+    }
+    .stat-card:hover { border-color: rgba(124,58,237,0.25); }
+    .stat-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 32px; font-weight: 800; letter-spacing: -1.5px; margin: 6px 0 2px; }
+    .stat-sub { font-size: 12px; color: var(--muted); }
+    .stat-up { color: #34d399; }
+
+    /* ── WELCOME BANNER ── */
+    .welcome-banner {
+      background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(109,40,217,0.1));
+      border: 1px solid rgba(124,58,237,0.25);
+      border-radius: 14px; padding: 28px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 32px;
+    }
+    .welcome-banner h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .welcome-banner p { font-size: 14px; color: var(--muted); margin-top: 4px; }
+
+    .start-btn {
+      background: var(--purple); border: none; border-radius: 10px;
+      color: #fff; font-size: 14px; font-weight: 700;
+      padding: 12px 24px; cursor: pointer; transition: all .2s; white-space: nowrap;
+      box-shadow: 0 0 24px var(--purple-glow);
+    }
+    .start-btn:hover { background: #6d28d9; transform: translateY(-1px); }
+
+    /* ── SECTION HEADER ── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-header h3 { font-size: 15px; font-weight: 700; }
+    .see-all { font-size: 13px; color: var(--purple-light); cursor: pointer; text-decoration: none; }
+    .see-all:hover { text-decoration: underline; }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      background: var(--bg3); border: 2px dashed var(--border);
+      border-radius: 14px; padding: 60px 32px;
+      text-align: center;
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state h4 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .empty-state p { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+
+    /* ── QUICK START CARDS ── */
+    .quick-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 16px; margin-top: 32px;
+    }
+
+    .quick-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      cursor: pointer; transition: all .3s;
+    }
+    .quick-card:hover { border-color: rgba(124,58,237,0.3); transform: translateY(-3px); }
+    .quick-card-icon { font-size: 28px; margin-bottom: 12px; }
+    .quick-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .quick-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ── SKELETON LOADER ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg3) 25%, rgba(255,255,255,0.04) 50%, var(--bg3) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    @media (max-width: 900px) {
+      aside { display: none; }
+      .main { margin-left: 0; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .quick-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="sidebar-logo">clueso</div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Workspace</div>
+      <a class="nav-item active" href="#"><span class="icon">🏠</span> Home</a>
+      <a class="nav-item" href="#"><span class="icon">🎬</span> My Videos <span class="badge">0</span></a>
+      <a class="nav-item" href="#"><span class="icon">📄</span> Documents</a>
+      <a class="nav-item" href="#"><span class="icon">🗂️</span> Collections</a>
+
+      <div class="nav-section-label">Create</div>
+      <a class="nav-item" href="#"><span class="icon">⏺️</span> New Recording</a>
+      <a class="nav-item" href="#"><span class="icon">⬆️</span> Upload Video</a>
+      <a class="nav-item" href="#"><span class="icon">🎨</span> Templates</a>
+
+      <div class="nav-section-label">Settings</div>
+      <a class="nav-item" href="#"><span class="icon">🏢</span> Workspace</a>
+      <a class="nav-item" href="#"><span class="icon">🎙️</span> Voice & Brand</a>
+      <a class="nav-item" href="#"><span class="icon">👥</span> Team</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-row">
+        <div class="user-avatar" id="avatarInitial">?</div>
+        <div>
+          <div class="user-name" id="sidebarName">Loading…</div>
+          <div class="user-email" id="sidebarEmail"></div>
+        </div>
+      </div>
+      <button class="sign-out-btn" id="signOutBtn">
+        <span>↩</span> Sign out
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">Home</div>
+      <button class="new-video-btn" id="newVideoBtn">
+        <span>+</span> New Video
+      </button>
+    </div>
+
+    <div class="content">
+      <!-- Welcome banner -->
+      <div class="welcome-banner">
+        <div>
+          <h2>Welcome to Clueso 👋</h2>
+          <p id="welcomeName">Start creating your first AI-powered product video.</p>
+        </div>
+        <button class="start-btn">Record your first video →</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Videos Created</div>
+          <div class="stat-value">0</div>
+          <div class="stat-sub">Get started below</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Views</div>
+          <div class="stat-value">—</div>
+          <div class="stat-sub">Publish a video first</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg. Completion</div>
+          <div class="stat-value">—</div>
+          <div class="stat-sub">No data yet</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Languages</div>
+          <div class="stat-value">1</div>
+          <div class="stat-sub">Add more anytime</div>
+        </div>
+      </div>
+
+      <!-- Recent videos -->
+      <div class="section-header">
+        <h3>Recent Videos</h3>
+        <a class="see-all" href="#">See all →</a>
+      </div>
+
+      <div class="empty-state">
+        <div class="empty-icon">🎬</div>
+        <h4>No videos yet</h4>
+        <p>Record your first screen or upload an existing video to get started.</p>
+        <button class="start-btn">+ Create your first video</button>
+      </div>
+
+      <!-- Quick start -->
+      <div class="section-header" style="margin-top:32px">
+        <h3>Quick Start</h3>
+      </div>
+      <div class="quick-grid">
+        <div class="quick-card">
+          <div class="quick-card-icon">⏺️</div>
+          <h4>Record your screen</h4>
+          <p>Capture a product walkthrough or tutorial with our lightweight browser extension.</p>
+        </div>
+        <div class="quick-card">
+          <div class="quick-card-icon">⬆️</div>
+          <h4>Upload a recording</h4>
+          <p>Already have a raw screen recording? Upload it and let AI polish it for you.</p>
+        </div>
+        <div class="quick-card">
+          <div class="quick-card-icon">🎨</div>
+          <h4>Browse templates</h4>
+          <p>Start from a branded template and skip straight to customizing your content.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireAuth, signOut, getUser } from './auth.js';
+
+  const session = await requireAuth();
+  if (!session) return; // redirected to login
+
+  const user = await getUser();
+  const name  = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
+  const email = user?.email || '';
+  const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+  document.getElementById('sidebarName').textContent  = name;
+  document.getElementById('sidebarEmail').textContent = email;
+  document.getElementById('avatarInitial').textContent = initials;
+  document.getElementById('welcomeName').textContent =
+    `Welcome back, ${name.split(' ')[0]}! Start creating your first AI-powered product video.`;
+
+  document.getElementById('signOutBtn').addEventListener('click', signOut);
+  document.getElementById('newVideoBtn').addEventListener('click', () => alert('Video recorder coming soon!'));
+</script>
+</body>
+</html>

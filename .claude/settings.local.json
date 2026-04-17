@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.clueso.io)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Read(//c/Users/mailu/Downloads/**)",
+      "Bash(unzip -l files.zip)",
+      "Bash(unzip -o files.zip -d extracted_files)"
+    ]
+  }
+}

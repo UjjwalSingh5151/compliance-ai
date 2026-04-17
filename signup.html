@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Up – Clueso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090b; --bg2: #111113; --bg3: #18181b;
+      --border: rgba(255,255,255,0.08); --purple: #7c3aed;
+      --purple-light: #a78bfa; --purple-glow: rgba(124,58,237,0.35);
+      --text: #f4f4f5; --muted: #a1a1aa; --error: #f87171; --success: #34d399;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      height: 64px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff, var(--purple-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      text-decoration: none;
+    }
+    .nav-link { font-size: 14px; color: var(--muted); text-decoration: none; transition: color .2s; }
+    .nav-link:hover { color: #fff; }
+
+    /* ── MAIN ── */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+      position: relative;
+    }
+    main::before {
+      content: '';
+      position: fixed;
+      top: -200px; left: 50%; transform: translateX(-50%);
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── CARD ── */
+    .card {
+      width: 100%;
+      max-width: 460px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 40px;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+      position: relative;
+    }
+
+    .card-header { text-align: center; margin-bottom: 32px; }
+    .card-header h1 { font-size: 26px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+    .card-header p { font-size: 14px; color: var(--muted); }
+
+    /* ── OAUTH ── */
+    .oauth-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .2s;
+      margin-bottom: 12px;
+    }
+    .oauth-btn:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 7px; color: var(--text); }
+
+    .input-wrap { position: relative; }
+    .input-wrap svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); opacity: 0.4; }
+
+    input {
+      width: 100%;
+      padding: 12px 14px 12px 40px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+    input::placeholder { color: rgba(255,255,255,0.2); }
+    input.error-input { border-color: var(--error); }
+
+    .password-toggle {
+      position: absolute;
+      right: 13px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; padding: 4px; font-size: 14px;
+      transition: color .2s;
+    }
+    .password-toggle:hover { color: #fff; }
+
+    /* strength bar */
+    .strength-wrap { margin-top: 8px; display: none; }
+    .strength-bar { display: flex; gap: 4px; }
+    .strength-seg {
+      flex: 1; height: 3px; border-radius: 99px;
+      background: var(--border); transition: background .3s;
+    }
+    .strength-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    .submit-btn {
+      width: 100%;
+      padding: 13px;
+      background: var(--purple);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      margin-top: 8px;
+      box-shadow: 0 0 30px var(--purple-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .submit-btn:hover:not(:disabled) { background: #6d28d9; transform: translateY(-1px); box-shadow: 0 8px 30px var(--purple-glow); }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .terms {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 14px;
+      line-height: 1.7;
+    }
+    .terms a { color: var(--purple-light); text-decoration: none; }
+    .terms a:hover { text-decoration: underline; }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .alert-error { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: var(--error); }
+    .alert-success { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--success); }
+
+    .login-link {
+      text-align: center;
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 24px;
+    }
+    .login-link a { color: var(--purple-light); text-decoration: none; font-weight: 600; }
+    .login-link a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="logo">clueso</a>
+  <a href="login.html" class="nav-link">Already have an account? Sign in →</a>
+</nav>
+
+<main>
+  <div class="card">
+    <div class="card-header">
+      <h1>Create your account</h1>
+      <p>Start your free trial — no credit card required</p>
+    </div>
+
+    <!-- Google OAuth -->
+    <button class="oauth-btn" id="googleBtn">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+
+    <div class="divider">or sign up with email</div>
+
+    <!-- Alert -->
+    <div class="alert alert-error" id="alertError"></div>
+    <div class="alert alert-success" id="alertSuccess"></div>
+
+    <!-- Form -->
+    <form id="signupForm">
+      <div class="form-group">
+        <label for="name">Full name</label>
+        <div class="input-wrap">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="text" id="name" placeholder="Jane Smith" autocomplete="name" required />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Work email</label>
+        <div class="input-wrap">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <input type="email" id="email" placeholder="jane@company.com" autocomplete="email" required />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <div class="input-wrap">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input type="password" id="password" placeholder="Min. 8 characters" autocomplete="new-password" required />
+          <button type="button" class="password-toggle" id="pwToggle">👁</button>
+        </div>
+        <div class="strength-wrap" id="strengthWrap">
+          <div class="strength-bar">
+            <div class="strength-seg" id="s1"></div>
+            <div class="strength-seg" id="s2"></div>
+            <div class="strength-seg" id="s3"></div>
+            <div class="strength-seg" id="s4"></div>
+          </div>
+          <div class="strength-label" id="strengthLabel"></div>
+        </div>
+      </div>
+
+      <button type="submit" class="submit-btn" id="submitBtn">
+        <div class="spinner" id="spinner"></div>
+        <span id="submitText">Create free account</span>
+      </button>
+    </form>
+
+    <p class="terms">
+      By signing up you agree to our
+      <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+    </p>
+
+    <p class="login-link">
+      Already have an account? <a href="login.html">Sign in</a>
+    </p>
+  </div>
+</main>
+
+<script type="module">
+  import { supabase, signUp, redirectIfAuthed } from './auth.js';
+
+  // Redirect if already logged in
+  redirectIfAuthed();
+
+  // ── Password visibility toggle ──────────────────────────────────────────
+  const pwInput  = document.getElementById('password');
+  const pwToggle = document.getElementById('pwToggle');
+  pwToggle.addEventListener('click', () => {
+    const show = pwInput.type === 'password';
+    pwInput.type = show ? 'text' : 'password';
+    pwToggle.textContent = show ? '🙈' : '👁';
+  });
+
+  // ── Password strength ───────────────────────────────────────────────────
+  const strengthWrap  = document.getElementById('strengthWrap');
+  const strengthLabel = document.getElementById('strengthLabel');
+  const segs = [document.getElementById('s1'), document.getElementById('s2'),
+                document.getElementById('s3'), document.getElementById('s4')];
+  const colors  = ['#ef4444','#f97316','#eab308','#22c55e'];
+  const labels  = ['Weak','Fair','Good','Strong'];
+
+  function getStrength(pw) {
+    let score = 0;
+    if (pw.length >= 8)  score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    return score;
+  }
+
+  pwInput.addEventListener('input', () => {
+    const val = pwInput.value;
+    if (!val) { strengthWrap.style.display = 'none'; return; }
+    strengthWrap.style.display = 'block';
+    const score = getStrength(val);
+    segs.forEach((s, i) => s.style.background = i < score ? colors[score - 1] : 'var(--border)');
+    strengthLabel.textContent = labels[score - 1] ?? '';
+  });
+
+  // ── Google OAuth ────────────────────────────────────────────────────────
+  document.getElementById('googleBtn').addEventListener('click', async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/dashboard.html' }
+    });
+  });
+
+  // ── Email signup form ───────────────────────────────────────────────────
+  const form       = document.getElementById('signupForm');
+  const submitBtn  = document.getElementById('submitBtn');
+  const spinner    = document.getElementById('spinner');
+  const submitText = document.getElementById('submitText');
+  const alertErr   = document.getElementById('alertError');
+  const alertOk    = document.getElementById('alertSuccess');
+
+  function showError(msg) {
+    alertErr.textContent = msg;
+    alertErr.style.display = 'block';
+    alertOk.style.display = 'none';
+  }
+  function showSuccess(msg) {
+    alertOk.textContent = msg;
+    alertOk.style.display = 'block';
+    alertErr.style.display = 'none';
+  }
+  function setLoading(on) {
+    submitBtn.disabled = on;
+    spinner.style.display = on ? 'block' : 'none';
+    submitText.textContent = on ? 'Creating account…' : 'Create free account';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    alertErr.style.display = 'none';
+    alertOk.style.display = 'none';
+
+    const name     = document.getElementById('name').value.trim();
+    const email    = document.getElementById('email').value.trim();
+    const password = pwInput.value;
+
+    if (password.length < 8) { showError('Password must be at least 8 characters.'); return; }
+
+    setLoading(true);
+    const { error } = await signUp(name, email, password);
+    setLoading(false);
+
+    if (error) {
+      showError(error.message);
+    } else {
+      showSuccess('🎉 Account created! Check your email to confirm, then sign in.');
+      form.reset();
+      strengthWrap.style.display = 'none';
+      setTimeout(() => window.location.href = 'login.html', 3000);
+    }
+  });
+</script>
+</body>
+</html>
