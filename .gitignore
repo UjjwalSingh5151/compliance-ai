@@ -1,8 +1,11 @@
 node_modules/
 frontend/node_modules/
 backend/node_modules/
+student-analyzer/node_modules/
 frontend/dist/
+student-analyzer/dist/
 .env
 backend/.env
+student-analyzer/.env
 *.local
 .DS_Store
