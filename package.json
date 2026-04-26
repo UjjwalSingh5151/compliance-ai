@@ -1,8 +1,8 @@
 {
-  "name": "compliance-ai",
+  "name": "edugrade",
   "version": "1.0.0",
   "scripts": {
-    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
+    "build": "cd student-analyzer && npm install && npm run build && cd ../backend && npm install",
     "start": "cd backend && node server.js"
   },
   "engines": {

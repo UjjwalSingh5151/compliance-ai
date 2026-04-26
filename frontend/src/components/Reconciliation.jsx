@@ -3,6 +3,7 @@ import { colors, SAMPLE_PURCHASES, SAMPLE_2B } from "../lib/compliance-data";
 import { reconcileData } from "../lib/reconciliation-engine";
 import { parseCSV } from "../lib/csv-parser";
 import { parseGSTR2BJSON } from "../lib/gstr2b-parser";
+import { supabase, authEnabled } from "../lib/supabase";
 
 const Pill = ({ color, children }) => (
   <span
@@ -118,11 +119,45 @@ function FileUpload({ label, accept, onData, hint }) {
   );
 }
 
-export default function Reconciliation({ reconResults, setReconResults, onAgentMessage }) {
+export default function Reconciliation({ reconResults, setReconResults, onAgentMessage, user }) {
   const [purchases, setPurchases] = useState(null);
   const [gstr2b, setGstr2b] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploadWarnings, setUploadWarnings] = useState([]);
+  const [savedRuns, setSavedRuns] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Load past reconciliation runs for this user
+  useEffect(() => {
+    if (!authEnabled || !user) return;
+    supabase
+      .from("recon_results")
+      .select("id, created_at, label, stats")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(10)
+      .then(({ data }) => { if (data) setSavedRuns(data); });
+  }, [user]);
+
+  const saveResults = async (results, stats) => {
+    if (!authEnabled || !user) return;
+    setSaving(true);
+    const label = `Reconciliation — ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
+    const { data } = await supabase.from("recon_results").insert({
+      user_id: user.id,
+      label,
+      stats,
+      results,
+    }).select("id, created_at, label, stats").single();
+    if (data) setSavedRuns((prev) => [data, ...prev]);
+    setSaving(false);
+  };
+
+  const loadSavedRun = async (id) => {
+    const { data } = await supabase.from("recon_results").select("results").eq("id", id).single();
+    if (data?.results) { setReconResults(data.results); setShowHistory(false); }
+  };
 
   const handleParsedCSV = (parsed, setter) => {
     if (parsed.warnings?.length) setUploadWarnings((w) => [...w, ...parsed.warnings]);
@@ -143,7 +178,7 @@ export default function Reconciliation({ reconResults, setReconResults, onAgentM
         extra: results.filter((r) => r.status === "extra_in_2b").length,
         atRisk: results.reduce((a, r) => a + r.itcAtRisk, 0),
       };
-      // Notify agent but don't switch tabs — user stays on Reconciliation
+      saveResults(results, stats);
       onAgentMessage(
         `Reconciliation complete! ${stats.matched} matched, ${stats.mismatch} mismatched, ${stats.missing} missing from 2B. ITC at risk: ₹${stats.atRisk.toLocaleString()}.`,
         false
@@ -197,6 +232,14 @@ export default function Reconciliation({ reconResults, setReconResults, onAgentM
             Upload purchase register + GSTR-2B JSON to auto-reconcile
           </p>
         </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {authEnabled && savedRuns.length > 0 && (
+            <button onClick={() => setShowHistory((v) => !v)}
+              style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${colors.accent}`, background: showHistory ? colors.accentDim : "transparent", color: colors.accent, fontSize: 12, cursor: "pointer" }}>
+              History ({savedRuns.length})
+            </button>
+          )}
+          {saving && <span style={{ fontSize: 11, color: colors.textDim, alignSelf: "center" }}>Saving…</span>}
         <button
           onClick={loadSampleData}
           style={{
@@ -211,7 +254,27 @@ export default function Reconciliation({ reconResults, setReconResults, onAgentM
         >
           Load sample data
         </button>
+        </div>
       </div>
+
+      {/* Past runs history panel */}
+      {showHistory && (
+        <div style={{ background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Past Reconciliations</div>
+          {savedRuns.map((run) => (
+            <div key={run.id} onClick={() => loadSavedRun(run.id)}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 6, background: colors.bg, border: `1px solid ${colors.border}` }}>
+              <div>
+                <div style={{ fontSize: 13, color: colors.text }}>{run.label}</div>
+                <div style={{ fontSize: 11, color: colors.textDim, marginTop: 2 }}>
+                  {run.stats?.matched} matched · {run.stats?.mismatch} mismatch · ₹{run.stats?.atRisk?.toLocaleString()} at risk
+                </div>
+              </div>
+              <span style={{ fontSize: 11, color: colors.accent }}>Load →</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {uploadWarnings.length > 0 && (
         <div style={{ background: `${colors.warn}15`, border: `1px solid ${colors.warn}40`, borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>

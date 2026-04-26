@@ -1,13 +1,36 @@
 import { useState, useEffect, useRef } from "react";
 import { colors } from "../lib/compliance-data";
+import { supabase, authEnabled } from "../lib/supabase";
 
-export default function AgentChat({ reconResults, externalMessages }) {
-  const [messages, setMessages] = useState([
-    {
-      role: "agent",
-      text: "Namaste! I'm your AI compliance agent powered by Claude. I can help with GST reconciliation, TDS computation, compliance deadlines, and notice responses.\n\nTo get started:\n• Upload data in the 'Reconciliation' tab for instant 2B matching\n• Check 'Calendar' for upcoming deadlines\n• Or just ask me anything about GST, TDS, penalties, or compliance.",
-    },
-  ]);
+const WELCOME = { role: "agent", text: "Namaste! I'm your AI compliance agent powered by Claude. I can help with GST reconciliation, TDS computation, compliance deadlines, and notice responses.\n\nTo get started:\n• Upload data in the 'Reconciliation' tab for instant 2B matching\n• Check 'Calendar' for upcoming deadlines\n• Or just ask me anything about GST, TDS, penalties, or compliance." };
+
+export default function AgentChat({ reconResults, externalMessages, user }) {
+  const [messages, setMessages] = useState([WELCOME]);
+  const chatSessionId = useRef(null);
+
+  // Load last chat session from Supabase on mount
+  useEffect(() => {
+    if (!authEnabled || !user) return;
+    supabase.from("chat_sessions").select("id, messages").eq("user_id", user.id)
+      .order("updated_at", { ascending: false }).limit(1).single()
+      .then(({ data }) => {
+        if (data?.messages?.length) {
+          setMessages(data.messages);
+          chatSessionId.current = data.id;
+        }
+      });
+  }, [user]);
+
+  // Save chat to Supabase after each AI response completes
+  const persistChat = async (msgs) => {
+    if (!authEnabled || !user) return;
+    if (chatSessionId.current) {
+      await supabase.from("chat_sessions").update({ messages: msgs, updated_at: new Date().toISOString() }).eq("id", chatSessionId.current);
+    } else {
+      const { data } = await supabase.from("chat_sessions").insert({ user_id: user.id, messages: msgs }).select("id").single();
+      if (data) chatSessionId.current = data.id;
+    }
+  };
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const chatEnd = useRef(null);
@@ -107,13 +130,12 @@ export default function AgentChat({ reconResults, externalMessages }) {
           }
         }
       }
+      // Persist completed conversation
+      setMessages((prev) => { persistChat(prev); return prev; });
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        {
-          role: "agent",
-          text: `Sorry, I encountered an error: ${err.message}. Please check that the backend is running and your API key is set.`,
-        },
+        { role: "agent", text: `Sorry, I encountered an error: ${err.message}. Please check that the backend is running and your API key is set.` },
       ]);
     } finally {
       setTyping(false);
