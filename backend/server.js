@@ -587,7 +587,7 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
 
         const response = await client.messages.create({
           model: "claude-sonnet-4-6",
-          max_tokens: 6000,
+          max_tokens: 8000,
           messages: [{
             role: "user",
             content: [contentBlock, { type: "text", text: analyzePrompt }],
@@ -597,10 +597,23 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
         let analysis;
         try {
           const text = response.content[0].text;
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          analysis = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-        } catch {
-          analysis = { parse_error: true, raw: response.content[0].text, marks_obtained: 0, total_marks: totalMarks };
+          // Try direct parse first, then extract first JSON object
+          let parsed;
+          try {
+            parsed = JSON.parse(text.trim());
+          } catch {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error("No JSON found in response");
+            parsed = JSON.parse(jsonMatch[0]);
+          }
+          analysis = parsed;
+          if (response.stop_reason === "max_tokens") {
+            console.warn(`[analyze] Token limit hit for ${file.originalname} — response may be incomplete`);
+          }
+        } catch (parseErr) {
+          const raw = response.content[0]?.text || "";
+          console.error(`[analyze] JSON parse failed for ${file.originalname}. stop_reason=${response.stop_reason} raw_snippet=${raw.slice(0, 300)}`);
+          analysis = { parse_error: true, raw, marks_obtained: 0, total_marks: totalMarks };
         }
 
         const student = analysis.student || {};
