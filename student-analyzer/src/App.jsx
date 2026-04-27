@@ -80,8 +80,8 @@ export default function App() {
 
   if (authEnabled && !user) return <AuthScreen />;
 
-  // School gating
-  if (authEnabled && user) {
+  // School gating (admin always bypasses)
+  if (authEnabled && user && !isAdmin) {
     if (!schoolInfo || schoolInfo.status === "none") {
       return <SchoolSetup isMobile={isMobile} onDone={() => {
         api.getMySchool().then(setSchoolInfo);
