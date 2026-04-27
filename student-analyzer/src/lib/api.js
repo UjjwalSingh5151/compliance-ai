@@ -91,6 +91,9 @@ export const api = {
   getStudents: () => json("/api/analyzer/students"),
   getStudent: (id) => json(`/api/analyzer/students/${id}`),
   getResult: (id) => json(`/api/analyzer/results/${id}`),
+  deleteResult: (id) => json(`/api/analyzer/results/${id}`, { method: "DELETE" }),
+  assignResult: (id, studentId) =>
+    json(`/api/analyzer/results/${id}/assign`, { method: "PATCH", body: JSON.stringify({ studentId }) }),
   saveComments: (id, comments) =>
     json(`/api/analyzer/results/${id}/comments`, {
       method: "PATCH", body: JSON.stringify({ comments }),

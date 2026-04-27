@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../lib/api";
 import { shareUrl, whatsappUrl } from "../lib/share";
-import { c, card, btn } from "../lib/theme";
+import { c, card, btn, input } from "../lib/theme";
 
 function ScoreRing({ pct, small }) {
   const color = pct >= 75 ? c.success : pct >= 50 ? c.warning : c.danger;
@@ -109,6 +109,72 @@ const fmtIST = (d) => new Date(d).toLocaleString("en-IN", {
   hour: "2-digit", minute: "2-digit", hour12: true,
 });
 
+function AssignModal({ resultId, onAssign, onClose }) {
+  const [students, setStudents] = useState([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
+
+  useEffect(() => {
+    api.getSchoolStudents()
+      .then(({ students }) => setStudents(students || []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = students.filter((s) => {
+    const q = search.toLowerCase();
+    return !q || (s.name || "").toLowerCase().includes(q)
+      || (s.roll_no || "").toLowerCase().includes(q)
+      || (s.class || "").toLowerCase().includes(q);
+  });
+
+  const assign = async (studentId) => {
+    setAssigning(true);
+    try {
+      const { student } = await api.assignResult(resultId, studentId);
+      onAssign(student);
+    } catch (e) { alert(e.message); setAssigning(false); }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: c.card, borderRadius: 12, width: "100%", maxWidth: 460, border: `1px solid ${c.border}`, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "80vh" }}>
+        <div style={{ padding: "14px 16px", borderBottom: `1px solid ${c.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: c.text }}>Assign to Student</div>
+          <button style={{ background: "none", border: "none", color: c.textDim, cursor: "pointer", fontSize: 18, lineHeight: 1 }} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: "10px 12px", flexShrink: 0 }}>
+          <input style={{ ...input, fontSize: 13 }} placeholder="Search by name, roll no, class…"
+            value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+        </div>
+        <div style={{ overflowY: "auto", padding: "0 12px 12px", flex: 1 }}>
+          {loading && <div style={{ color: c.textDim, fontSize: 13, textAlign: "center", padding: 24 }}>Loading…</div>}
+          {!loading && filtered.length === 0 && <div style={{ color: c.textDim, fontSize: 13, textAlign: "center", padding: 24 }}>No students found</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {filtered.map((s) => (
+              <button key={s.id} disabled={assigning} onClick={() => assign(s.id)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "transparent", border: `1px solid ${c.border}`, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", opacity: assigning ? 0.6 : 1 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#1c2330"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                <div style={{ width: 34, height: 34, borderRadius: 17, background: c.accentDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: c.accent, flexShrink: 0 }}>
+                  {(s.name || "?").slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.text }}>{s.name}</div>
+                  <div style={{ fontSize: 11, color: c.textMid }}>
+                    {s.roll_no && `Roll: ${s.roll_no}`}{s.class && ` · Class: ${s.class}`}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultDetail({ params, navigate, isMobile }) {
   const { resultId } = params;
   const [result, setResult] = useState(null);
@@ -117,6 +183,7 @@ export default function ResultDetail({ params, navigate, isMobile }) {
   const [comments, setComments] = useState({});
   const [saving, setSaving] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
+  const [showAssign, setShowAssign] = useState(false);
   const p = isMobile ? 16 : 28;
 
   useEffect(() => {
@@ -183,7 +250,7 @@ export default function ResultDetail({ params, navigate, isMobile }) {
           </div>
         </div>
 
-        {/* Share buttons — below on mobile */}
+        {/* Share + assign buttons */}
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           <a href={whatsappUrl(share_token, student?.name, test?.name)} target="_blank" rel="noopener noreferrer"
             style={{ ...btn.secondary, textDecoration: "none", fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: c.success, border: `1px solid ${c.success}40`, flex: isMobile ? 1 : "none", justifyContent: "center" }}>
@@ -192,8 +259,22 @@ export default function ResultDetail({ params, navigate, isMobile }) {
           <button style={{ ...btn.ghost, fontSize: 12, flex: isMobile ? 1 : "none" }} onClick={copyLink}>
             {copyDone ? "✓ Copied!" : "🔗 Copy link"}
           </button>
+          <button style={{ ...btn.ghost, fontSize: 12, flex: isMobile ? 1 : "none" }} onClick={() => setShowAssign(true)}>
+            👤 Assign to Student
+          </button>
         </div>
       </div>
+
+      {showAssign && (
+        <AssignModal
+          resultId={resultId}
+          onAssign={(newStudent) => {
+            setResult((prev) => ({ ...prev, analyzer_students: newStudent }));
+            setShowAssign(false);
+          }}
+          onClose={() => setShowAssign(false)}
+        />
+      )}
 
       {/* Strengths + Improvement areas */}
       {(analysis?.strengths?.length > 0 || analysis?.improvement_areas?.length > 0) && (

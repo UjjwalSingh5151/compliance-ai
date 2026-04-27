@@ -805,6 +805,50 @@ app.get("/api/analyzer/results/:id", async (req, res) => {
   }
 });
 
+// DELETE /api/analyzer/results/:id
+app.delete("/api/analyzer/results/:id", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.json({ ok: true });
+    const user = await getRequestUser(req);
+    const { data: result } = await supabaseAdmin
+      .from("analyzer_results").select("id, analyzer_tests(created_by)").eq("id", req.params.id).single();
+    if (!result) return res.status(404).json({ error: "Not found" });
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
+    if (user && schoolInfo?.role === "teacher" && result.analyzer_tests?.created_by !== user.id) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    const { error } = await supabaseAdmin.from("analyzer_results").delete().eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/analyzer/results/:id/assign — link result to an existing CRM student
+app.patch("/api/analyzer/results/:id/assign", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.json({ ok: true });
+    const { studentId } = req.body;
+    const user = await getRequestUser(req);
+    const { data: result } = await supabaseAdmin
+      .from("analyzer_results").select("id, analyzer_tests(created_by)").eq("id", req.params.id).single();
+    if (!result) return res.status(404).json({ error: "Not found" });
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
+    if (user && schoolInfo?.role === "teacher" && result.analyzer_tests?.created_by !== user.id) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    const { error } = await supabaseAdmin
+      .from("analyzer_results").update({ student_id: studentId || null }).eq("id", req.params.id);
+    if (error) throw error;
+    let student = null;
+    if (studentId) {
+      const { data: s } = await supabaseAdmin
+        .from("analyzer_students").select("id, name, roll_no, class, section, academic_year, email").eq("id", studentId).single();
+      student = s;
+    }
+    res.json({ ok: true, student });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // PATCH /api/analyzer/results/:id/comments — save teacher comments per question
 app.patch("/api/analyzer/results/:id/comments", async (req, res) => {
   try {
