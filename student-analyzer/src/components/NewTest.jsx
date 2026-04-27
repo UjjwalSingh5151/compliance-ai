@@ -17,10 +17,29 @@ export default function NewTest({ navigate, isMobile }) {
   const [leniency, setLeniency] = useState(3);
   const [instructions, setInstructions] = useState("");
   const [file, setFile] = useState(null);
+  const [extracting, setExtracting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const fileRef = useRef();
   const p = isMobile ? 16 : 28;
+
+  const handlePaperFile = async (f) => {
+    if (!f) return;
+    setFile(f);
+    setExtracting(true);
+    setError(null);
+    try {
+      const data = await api.extractPaper(f);
+      if (data.name) setName(data.name);
+      if (data.subject) setSubject(data.subject);
+      if (data.totalMarks && data.totalMarks > 0) setTotalMarks(String(data.totalMarks));
+      if (data.instructions) setInstructions(data.instructions);
+    } catch (e) {
+      // Extraction failed — user can fill fields manually, don't block
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -51,23 +70,53 @@ export default function NewTest({ navigate, isMobile }) {
       </button>
       <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700, color: c.text, marginBottom: 4 }}>New Test</h1>
       <p style={{ fontSize: 13, color: c.textMid, marginBottom: 20 }}>
-        Set grading rules. Claude uses these when evaluating every answer sheet.
+        Upload the question paper — Claude will auto-fill the details for you.
       </p>
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* Question paper — FIRST */}
+        <div style={card}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>
+            QUESTION PAPER <span style={{ color: c.textDim, fontWeight: 400 }}>(PDF or image)</span>
+          </label>
+          {file ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: extracting ? `${c.warning}15` : c.accentDim, borderRadius: 8, border: `1px solid ${extracting ? c.warning : c.accent}` }}>
+              <span>{extracting ? "⏳" : "📄"}</span>
+              <span style={{ flex: 1, fontSize: 13, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+              {extracting
+                ? <span style={{ fontSize: 11, color: c.warning, flexShrink: 0 }}>Extracting details…</span>
+                : <button type="button" style={{ ...btn.ghost, padding: "2px 8px", color: c.danger }} onClick={() => { setFile(null); setName(""); setSubject(""); setTotalMarks("100"); setInstructions(""); }}>✕</button>
+              }
+            </div>
+          ) : (
+            <div style={{ border: `2px dashed ${c.border}`, borderRadius: 8, padding: isMobile ? 20 : 28, textAlign: "center", cursor: "pointer" }}
+              onClick={() => fileRef.current.click()}
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.accent; }}
+              onDragLeave={(e) => e.currentTarget.style.borderColor = c.border}
+              onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.border; handlePaperFile(e.dataTransfer.files[0] || null); }}>
+              <div style={{ fontSize: 22, marginBottom: 6 }}>☁️</div>
+              <div style={{ fontSize: 13, color: c.textMid }}>Tap to upload or drag & drop</div>
+              <div style={{ fontSize: 11, color: c.textDim, marginTop: 3 }}>PDF, JPG, PNG — Claude will extract test details automatically</div>
+              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" style={{ display: "none" }}
+                onChange={(e) => handlePaperFile(e.target.files[0] || null)} />
+            </div>
+          )}
+        </div>
+
         <div style={card}>
           <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>TEST NAME *</label>
-          <input style={input} placeholder="e.g. Class 10 Maths — Unit 3 Test" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input style={input} placeholder="e.g. Class 10 Maths — Unit 3 Test" value={name} onChange={(e) => setName(e.target.value)} required disabled={extracting} />
         </div>
 
         <div style={{ ...card, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>SUBJECT</label>
-            <input style={input} placeholder="e.g. Mathematics" value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <input style={input} placeholder="e.g. Mathematics" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={extracting} />
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>TOTAL MARKS</label>
-            <input style={input} type="number" min="1" max="1000" value={totalMarks} onChange={(e) => setTotalMarks(e.target.value)} />
+            <input style={input} type="number" min="1" max="1000" value={totalMarks} onChange={(e) => setTotalMarks(e.target.value)} disabled={extracting} />
           </div>
         </div>
 
@@ -99,37 +148,13 @@ export default function NewTest({ navigate, isMobile }) {
           </label>
           <textarea style={{ ...input, minHeight: 80, resize: "vertical", lineHeight: 1.6 }}
             placeholder={"e.g.\n- Q3 accepts two valid approaches\n- Diagrams compulsory for Q5"}
-            value={instructions} onChange={(e) => setInstructions(e.target.value)} />
-        </div>
-
-        <div style={card}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>
-            QUESTION PAPER <span style={{ color: c.textDim, fontWeight: 400 }}>(optional — PDF or image)</span>
-          </label>
-          {file ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: c.accentDim, borderRadius: 8, border: `1px solid ${c.accent}` }}>
-              <span>📄</span>
-              <span style={{ flex: 1, fontSize: 13, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
-              <button type="button" style={{ ...btn.ghost, padding: "2px 8px", color: c.danger }} onClick={() => setFile(null)}>✕</button>
-            </div>
-          ) : (
-            <div style={{ border: `2px dashed ${c.border}`, borderRadius: 8, padding: isMobile ? 20 : 28, textAlign: "center", cursor: "pointer" }}
-              onClick={() => fileRef.current.click()}
-              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.accent; }}
-              onDragLeave={(e) => e.currentTarget.style.borderColor = c.border}
-              onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.border; setFile(e.dataTransfer.files[0] || null); }}>
-              <div style={{ fontSize: 22, marginBottom: 6 }}>☁️</div>
-              <div style={{ fontSize: 13, color: c.textMid }}>Tap to upload or drag & drop</div>
-              <div style={{ fontSize: 11, color: c.textDim, marginTop: 3 }}>PDF, JPG, PNG — up to 25 MB</div>
-              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" style={{ display: "none" }} onChange={(e) => setFile(e.target.files[0] || null)} />
-            </div>
-          )}
+            value={instructions} onChange={(e) => setInstructions(e.target.value)} disabled={extracting} />
         </div>
 
         {error && <div style={{ fontSize: 13, color: c.danger, background: c.dangerDim, padding: "10px 14px", borderRadius: 8 }}>{error}</div>}
 
-        <button type="submit" style={{ ...btn.primary, padding: 12, opacity: loading ? 0.6 : 1 }} disabled={loading || !name.trim()}>
-          {loading ? (file ? "Extracting question paper…" : "Creating…") : "Create Test →"}
+        <button type="submit" style={{ ...btn.primary, padding: 12, opacity: (loading || extracting) ? 0.6 : 1 }} disabled={loading || extracting || !name.trim()}>
+          {loading ? "Creating…" : extracting ? "Extracting details…" : "Create Test →"}
         </button>
       </form>
     </div>

@@ -41,6 +41,8 @@ export const api = {
 
   // Student CRM
   getSchoolStudents: () => json("/api/school/students"),
+  addStudent: (data) =>
+    json("/api/school/students", { method: "POST", body: JSON.stringify(data) }),
   updateStudent: (id, data) =>
     json(`/api/school/students/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   importStudents: (students) =>
@@ -50,6 +52,11 @@ export const api = {
   getTests: () => json("/api/analyzer/tests"),
   createTest: (formData) =>
     json("/api/analyzer/tests", { method: "POST", body: formData }),
+  extractPaper: (file) => {
+    const fd = new FormData();
+    fd.append("questionPaper", file);
+    return json("/api/analyzer/extract-paper", { method: "POST", body: fd });
+  },
 
   analyzeSheets: async (testId, files, onEvent) => {
     const token = await getToken();

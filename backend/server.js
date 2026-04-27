@@ -350,6 +350,26 @@ app.post("/api/school/students/import", requireSchool, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/school/students — add a single student manually
+app.post("/api/school/students", requireSchool, async (req, res) => {
+  try {
+    const { name, roll_no, class: cls, academic_year, email, section } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    const record = {
+      school_id: req.school.id,
+      name: name.trim(),
+      roll_no: roll_no?.toString().trim() || null,
+      class: cls?.toString().trim() || null,
+      academic_year: academic_year?.toString().trim() || null,
+      email: email?.trim().toLowerCase() || null,
+      section: section?.toString().trim() || null,
+    };
+    const { data, error } = await supabaseAdmin.from("analyzer_students").insert(record).select().single();
+    if (error) throw error;
+    res.json({ student: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 // POST /api/analyzer/tests — create test + optionally extract question paper
@@ -402,6 +422,43 @@ app.post("/api/analyzer/tests", upload.single("questionPaper"), async (req, res)
     res.json({ test: data });
   } catch (err) {
     console.error("Create test error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/analyzer/extract-paper — extract test metadata from question paper
+app.post("/api/analyzer/extract-paper", upload.single("questionPaper"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const contentBlock = fileToClaudeContent(req.file);
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 512,
+      messages: [{
+        role: "user",
+        content: [
+          contentBlock,
+          {
+            type: "text",
+            text: `Extract the following from this question paper and return ONLY valid JSON, no other text:
+{
+  "name": "<test/exam name, e.g. 'Unit Test 1 - Algebra' or 'Mid-Term Examination'>",
+  "subject": "<subject name>",
+  "totalMarks": <total marks as a number>,
+  "instructions": "<any grading-relevant instructions, max 200 chars, or empty string>"
+}
+If a field cannot be determined, use an empty string or 0 for totalMarks.`,
+          },
+        ],
+      }],
+    });
+    const raw = response.content[0].text.trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(422).json({ error: "Could not parse response" });
+    const extracted = JSON.parse(jsonMatch[0]);
+    res.json(extracted);
+  } catch (err) {
+    console.error("Extract paper error:", err);
     res.status(500).json({ error: err.message });
   }
 });

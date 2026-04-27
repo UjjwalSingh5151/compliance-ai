@@ -29,6 +29,8 @@ function parseExcel(file) {
   });
 }
 
+const EMPTY_FORM = { name: "", roll_no: "", class: "", academic_year: "", email: "" };
+
 export default function StudentCRM({ navigate, isMobile }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,9 @@ export default function StudentCRM({ navigate, isMobile }) {
   const [editingId, setEditingId] = useState(null);
   const [editEmail, setEditEmail] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_FORM);
+  const [adding, setAdding] = useState(false);
   const fileRef = useRef();
   const p = isMobile ? 16 : 28;
 
@@ -76,6 +81,19 @@ export default function StudentCRM({ navigate, isMobile }) {
     }
   };
 
+  const submitAdd = async (e) => {
+    e.preventDefault();
+    if (!addForm.name.trim()) return;
+    setAdding(true);
+    try {
+      const { student } = await api.addStudent(addForm);
+      setStudents((prev) => [student, ...prev]);
+      setShowAddForm(false);
+      setAddForm(EMPTY_FORM);
+    } catch (e) { alert(e.message); }
+    finally { setAdding(false); }
+  };
+
   const saveEmail = async (id) => {
     setSaving(true);
     try {
@@ -96,6 +114,9 @@ export default function StudentCRM({ navigate, isMobile }) {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <button style={{ ...btn.primary, fontSize: 12 }} onClick={() => setShowAddForm((v) => !v)}>
+            {showAddForm ? "✕ Cancel" : "+ Add Student"}
+          </button>
           <button style={{ ...btn.secondary, fontSize: 12 }} onClick={() => fileRef.current.click()} disabled={importing}>
             {importing ? "Importing…" : "📥 Import Excel"}
           </button>
@@ -113,6 +134,46 @@ export default function StudentCRM({ navigate, isMobile }) {
             </span>
           )}
         </div>
+      )}
+
+      {/* Add Student form */}
+      {showAddForm && (
+        <form onSubmit={submitAdd} style={{ ...card, marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.textMid, marginBottom: 2 }}>ADD STUDENT</div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+            <div>
+              <label style={{ fontSize: 11, color: c.textDim, display: "block", marginBottom: 3 }}>Name *</label>
+              <input style={{ ...input, fontSize: 12, padding: "7px 10px" }} placeholder="Full name" value={addForm.name}
+                onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} required autoFocus />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: c.textDim, display: "block", marginBottom: 3 }}>Roll No</label>
+              <input style={{ ...input, fontSize: 12, padding: "7px 10px" }} placeholder="e.g. 42" value={addForm.roll_no}
+                onChange={(e) => setAddForm((p) => ({ ...p, roll_no: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: c.textDim, display: "block", marginBottom: 3 }}>Class</label>
+              <input style={{ ...input, fontSize: 12, padding: "7px 10px" }} placeholder="e.g. 10A" value={addForm.class}
+                onChange={(e) => setAddForm((p) => ({ ...p, class: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: c.textDim, display: "block", marginBottom: 3 }}>Academic Year</label>
+              <input style={{ ...input, fontSize: 12, padding: "7px 10px" }} placeholder="e.g. 2024-25" value={addForm.academic_year}
+                onChange={(e) => setAddForm((p) => ({ ...p, academic_year: e.target.value }))} />
+            </div>
+            <div style={{ gridColumn: isMobile ? undefined : "1 / -1" }}>
+              <label style={{ fontSize: 11, color: c.textDim, display: "block", marginBottom: 3 }}>Email (for student portal)</label>
+              <input style={{ ...input, fontSize: 12, padding: "7px 10px" }} type="email" placeholder="student@email.com" value={addForm.email}
+                onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button type="button" style={{ ...btn.ghost, fontSize: 12 }} onClick={() => { setShowAddForm(false); setAddForm(EMPTY_FORM); }}>Cancel</button>
+            <button type="submit" style={{ ...btn.primary, fontSize: 12, opacity: adding ? 0.6 : 1 }} disabled={adding || !addForm.name.trim()}>
+              {adding ? "Adding…" : "Add Student"}
+            </button>
+          </div>
+        </form>
       )}
 
       {/* Excel format hint */}

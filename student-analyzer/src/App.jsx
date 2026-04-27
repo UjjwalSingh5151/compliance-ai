@@ -78,7 +78,7 @@ export default function App() {
     { id: "dashboard",       label: "Tests",    icon: "📝" },
     ...(isOwner ? [{ id: "students",     label: "Students", icon: "👥" }] : []),
     ...(isOwner ? [{ id: "student-crm",  label: "CRM",      icon: "🗂️" }] : []),
-    ...(isOwner ? [{ id: "school-settings", label: "Settings", icon: "⚙️" }] : []),
+    ...(isOwner ? [{ id: "school-settings", label: "Invite Teacher", icon: "✉️" }] : []),
     ...(isAdmin  ? [{ id: "admin",       label: "Admin",    icon: "🔑" }] : []),
   ];
 
