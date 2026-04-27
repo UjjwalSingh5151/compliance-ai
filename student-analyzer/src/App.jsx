@@ -47,9 +47,26 @@ export default function App() {
       setAuthLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
+      // Only update if user actually changed — avoids re-fetching school on every token refresh
+      setUser(prev => {
+        const next = session?.user ?? null;
+        return prev?.id === next?.id ? prev : next;
+      });
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Browser back/forward support
+  useEffect(() => {
+    window.history.replaceState({ view: "dashboard", params: {} }, "");
+    const handlePop = (e) => {
+      if (e.state?.view) {
+        setView(e.state.view);
+        setParams(e.state.params || {});
+      }
+    };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
   }, []);
 
   // Load school/student info whenever user changes
@@ -70,7 +87,11 @@ export default function App() {
       .finally(() => setSchoolLoading(false));
   }, [user]);
 
-  const navigate = (v, p = {}) => { setView(v); setParams(p); };
+  const navigate = (v, p = {}) => {
+    window.history.pushState({ view: v, params: p }, "");
+    setView(v);
+    setParams(p);
+  };
   const isAdmin = user?.id === ADMIN_USER_ID;
 
   const isOwner = isAdmin || schoolInfo?.role === "owner";

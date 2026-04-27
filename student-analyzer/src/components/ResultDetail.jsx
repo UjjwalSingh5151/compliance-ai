@@ -104,6 +104,11 @@ function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMo
   );
 }
 
+const fmtIST = (d) => new Date(d).toLocaleString("en-IN", {
+  timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric",
+  hour: "2-digit", minute: "2-digit", hour12: true,
+});
+
 export default function ResultDetail({ params, navigate, isMobile }) {
   const { resultId } = params;
   const [result, setResult] = useState(null);
@@ -170,6 +175,11 @@ export default function ResultDetail({ params, navigate, isMobile }) {
             <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: c.text, marginTop: 4 }}>
               {result.marks_obtained} <span style={{ fontSize: 13, fontWeight: 400, color: c.textMid }}>/ {result.total_marks} marks</span>
             </div>
+            {result.analyzed_at && (
+              <div style={{ fontSize: 11, color: c.textDim, marginTop: 4 }}>
+                Analyzed {fmtIST(result.analyzed_at)}
+              </div>
+            )}
           </div>
         </div>
 
@@ -242,6 +252,24 @@ export default function ResultDetail({ params, navigate, isMobile }) {
               isMobile={isMobile}
             />
           ))}
+        </div>
+      )}
+
+      {/* Parse error — show raw Claude output for debugging */}
+      {analysis?.parse_error && (
+        <div style={{ ...card, marginBottom: 14, border: `1px solid ${c.warning}40`, background: `${c.warning}08` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: c.warning, marginBottom: 8, letterSpacing: 0.5 }}>⚠ ANALYSIS PARSE ERROR</div>
+          <div style={{ fontSize: 13, color: c.textMid, marginBottom: 10, lineHeight: 1.6 }}>
+            Claude returned a response that couldn't be parsed as JSON. Common causes: unreadable PDF, password-protected file, or the sheet was too blurry. Try re-uploading a clearer image.
+          </div>
+          {analysis.raw && (
+            <details>
+              <summary style={{ fontSize: 12, color: c.textDim, cursor: "pointer" }}>Show Claude's raw output</summary>
+              <pre style={{ fontSize: 11, color: c.textMid, background: c.bg, padding: "10px 12px", borderRadius: 8, marginTop: 8, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 300, overflowY: "auto", border: `1px solid ${c.border}` }}>
+                {analysis.raw}
+              </pre>
+            </details>
+          )}
         </div>
       )}
 
