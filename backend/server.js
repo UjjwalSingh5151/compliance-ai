@@ -417,7 +417,13 @@ app.get("/api/analyzer/tests", async (req, res) => {
       .select("*, analyzer_results(count)")
       .order("created_at", { ascending: false });
     if (schoolInfo?.school?.id) {
-      query = query.eq("school_id", schoolInfo.school.id);
+      if (schoolInfo.role === "teacher") {
+        // Teachers only see their own tests
+        query = query.eq("school_id", schoolInfo.school.id).eq("created_by", user.id);
+      } else {
+        // Owners see all school tests
+        query = query.eq("school_id", schoolInfo.school.id);
+      }
     } else if (user?.id) {
       query = query.eq("created_by", user.id);
     }
@@ -616,6 +622,22 @@ app.get("/api/analyzer/students", async (req, res) => {
     const user = await getRequestUser(req);
     const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
     const schoolId = schoolInfo?.school?.id;
+
+    if (schoolInfo?.role === "teacher") {
+      // Teachers only see students from their own tests
+      const { data: testRows } = await supabaseAdmin
+        .from("analyzer_tests").select("id").eq("created_by", user.id).eq("school_id", schoolId);
+      const testIds = (testRows || []).map((t) => t.id);
+      if (!testIds.length) return res.json({ students: [] });
+      const { data: resultRows } = await supabaseAdmin
+        .from("analyzer_results").select("student_id").in("test_id", testIds);
+      const studentIds = [...new Set((resultRows || []).map((r) => r.student_id).filter(Boolean))];
+      if (!studentIds.length) return res.json({ students: [] });
+      const { data, error } = await supabaseAdmin
+        .from("analyzer_students").select("*, analyzer_results(count)").in("id", studentIds).order("name");
+      if (error) throw error;
+      return res.json({ students: data || [] });
+    }
 
     let query = supabaseAdmin.from("analyzer_students")
       .select("*, analyzer_results(count)").order("name");

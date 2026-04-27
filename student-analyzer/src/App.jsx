@@ -62,12 +62,13 @@ export default function App() {
   const navigate = (v, p = {}) => { setView(v); setParams(p); };
   const isAdmin = user?.id === ADMIN_USER_ID;
 
+  const isOwner = isAdmin || schoolInfo?.role === "owner";
   const NAV = [
-    { id: "dashboard",    label: "Tests",    icon: "📝" },
-    { id: "students",     label: "Students", icon: "👥" },
-    { id: "student-crm",  label: "CRM",      icon: "🗂️" },
-    { id: "school-settings", label: "Settings", icon: "⚙️" },
-    ...(isAdmin ? [{ id: "admin", label: "Admin", icon: "🔑" }] : []),
+    { id: "dashboard",       label: "Tests",    icon: "📝" },
+    ...(isOwner ? [{ id: "students",     label: "Students", icon: "👥" }] : []),
+    ...(isOwner ? [{ id: "student-crm",  label: "CRM",      icon: "🗂️" }] : []),
+    ...(isOwner ? [{ id: "school-settings", label: "Settings", icon: "⚙️" }] : []),
+    ...(isAdmin  ? [{ id: "admin",       label: "Admin",    icon: "🔑" }] : []),
   ];
 
   if (authLoading || schoolLoading) {
