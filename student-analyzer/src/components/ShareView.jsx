@@ -42,7 +42,7 @@ export default function ShareView({ token }) {
     );
   }
 
-  const { analysis, analyzer_tests: test, analyzer_students: student, marks_obtained, total_marks } = result;
+  const { analysis, analyzer_tests: test, analyzer_students: student, marks_obtained, total_marks, original_sheet_url } = result;
   const pct = total_marks > 0 ? Math.round((marks_obtained / total_marks) * 100) : 0;
 
   return (
@@ -121,6 +121,20 @@ export default function ShareView({ token }) {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Original answer sheet */}
+        {original_sheet_url && (
+          <div style={{ ...card, marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: c.textMid, marginBottom: 10, letterSpacing: 0.5 }}>YOUR ANSWER SHEET</div>
+            {original_sheet_url.toLowerCase().endsWith(".pdf") ? (
+              <a href={original_sheet_url} target="_blank" rel="noopener noreferrer" style={{ color: c.accent, fontSize: 13 }}>
+                Open PDF ↗
+              </a>
+            ) : (
+              <img src={original_sheet_url} alt="Answer sheet" style={{ maxWidth: "100%", borderRadius: 8, border: `1px solid ${c.border}` }} />
+            )}
           </div>
         )}
 
