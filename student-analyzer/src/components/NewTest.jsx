@@ -10,7 +10,7 @@ const LENIENCY_LEVELS = [
   { value: 5, label: "Very Lenient", desc: "Give benefit of doubt. Award marks for any reasonable attempt." },
 ];
 
-export default function NewTest({ navigate }) {
+export default function NewTest({ navigate, isMobile }) {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [totalMarks, setTotalMarks] = useState("100");
@@ -20,6 +20,7 @@ export default function NewTest({ navigate }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const fileRef = useRef();
+  const p = isMobile ? 16 : 28;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -33,7 +34,6 @@ export default function NewTest({ navigate }) {
       fd.append("leniency", leniency);
       fd.append("instructions", instructions.trim());
       if (file) fd.append("questionPaper", file);
-
       const { test } = await api.createTest(fd);
       navigate("upload", { testId: test.id, testName: test.name });
     } catch (err) {
@@ -45,25 +45,22 @@ export default function NewTest({ navigate }) {
   const selected = LENIENCY_LEVELS.find((l) => l.value === leniency);
 
   return (
-    <div style={{ padding: 28, maxWidth: 600, margin: "0 auto" }}>
-      <button style={{ ...btn.ghost, marginBottom: 20, paddingLeft: 0, color: c.textMid }} onClick={() => navigate("dashboard")}>
+    <div style={{ padding: p, maxWidth: 600, margin: "0 auto" }}>
+      <button style={{ ...btn.ghost, marginBottom: 16, paddingLeft: 0, color: c.textMid }} onClick={() => navigate("dashboard")}>
         ← Back
       </button>
-
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: c.text, marginBottom: 4 }}>New Test</h1>
-      <p style={{ fontSize: 13, color: c.textMid, marginBottom: 24 }}>
-        Set up the test details and grading rules. Claude will use these when evaluating every answer sheet.
+      <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700, color: c.text, marginBottom: 4 }}>New Test</h1>
+      <p style={{ fontSize: 13, color: c.textMid, marginBottom: 20 }}>
+        Set grading rules. Claude uses these when evaluating every answer sheet.
       </p>
 
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-
-        {/* Basic info */}
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={card}>
           <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>TEST NAME *</label>
           <input style={input} placeholder="e.g. Class 10 Maths — Unit 3 Test" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
 
-        <div style={{ ...card, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ ...card, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>SUBJECT</label>
             <input style={input} placeholder="e.g. Mathematics" value={subject} onChange={(e) => setSubject(e.target.value)} />
@@ -74,80 +71,57 @@ export default function NewTest({ navigate }) {
           </div>
         </div>
 
-        {/* Leniency */}
         <div style={card}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 12 }}>
-            GRADING STRICTNESS
-          </label>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 10 }}>GRADING STRICTNESS</label>
+          <div style={{ display: "flex", gap: isMobile ? 4 : 6, marginBottom: 10 }}>
             {LENIENCY_LEVELS.map((l) => (
-              <button
-                key={l.value}
-                type="button"
-                onClick={() => setLeniency(l.value)}
-                style={{
-                  flex: 1, padding: "8px 4px", borderRadius: 8, border: `2px solid`,
+              <button key={l.value} type="button" onClick={() => setLeniency(l.value)}
+                style={{ flex: 1, padding: isMobile ? "6px 2px" : "8px 4px", borderRadius: 8, border: `2px solid`,
                   borderColor: leniency === l.value ? c.accent : c.border,
                   background: leniency === l.value ? c.accentDim : "transparent",
                   color: leniency === l.value ? c.accent : c.textMid,
-                  fontSize: 11, fontWeight: leniency === l.value ? 700 : 400,
+                  fontSize: isMobile ? 9 : 11, fontWeight: leniency === l.value ? 700 : 400,
                   cursor: "pointer", fontFamily: "inherit", textAlign: "center",
-                }}
-              >
+                }}>
                 {l.value}
-                <div style={{ fontSize: 9, marginTop: 2, fontWeight: 400, lineHeight: 1.2 }}>{l.label}</div>
+                <div style={{ fontSize: isMobile ? 8 : 9, marginTop: 2, fontWeight: 400 }}>{l.label.split(" ").pop()}</div>
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 12, color: c.textMid, background: c.bg, borderRadius: 6, padding: "8px 12px", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: c.textMid, background: c.bg, borderRadius: 6, padding: "8px 10px", lineHeight: 1.5 }}>
             <strong style={{ color: c.text }}>{selected.label}:</strong> {selected.desc}
           </div>
         </div>
 
-        {/* Manual instructions */}
         <div style={card}>
           <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>
             GRADING INSTRUCTIONS <span style={{ color: c.textDim, fontWeight: 400 }}>(optional)</span>
           </label>
-          <textarea
-            style={{ ...input, minHeight: 90, resize: "vertical", lineHeight: 1.6 }}
-            placeholder={`e.g.\n- Q3 has two valid approaches — accept either method\n- Award full marks if final answer is correct even if steps are missing\n- Diagrams are compulsory for Q5 and Q6`}
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-          />
-          <div style={{ fontSize: 11, color: c.textDim, marginTop: 6 }}>
-            These instructions override the strictness setting for specific questions.
-          </div>
+          <textarea style={{ ...input, minHeight: 80, resize: "vertical", lineHeight: 1.6 }}
+            placeholder={"e.g.\n- Q3 accepts two valid approaches\n- Diagrams compulsory for Q5"}
+            value={instructions} onChange={(e) => setInstructions(e.target.value)} />
         </div>
 
-        {/* Question paper upload */}
         <div style={card}>
           <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>
             QUESTION PAPER <span style={{ color: c.textDim, fontWeight: 400 }}>(optional — PDF or image)</span>
           </label>
           {file ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: c.accentDim, borderRadius: 8, border: `1px solid ${c.accent}` }}>
-              <span style={{ fontSize: 18 }}>📄</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: c.accentDim, borderRadius: 8, border: `1px solid ${c.accent}` }}>
+              <span>📄</span>
               <span style={{ flex: 1, fontSize: 13, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
               <button type="button" style={{ ...btn.ghost, padding: "2px 8px", color: c.danger }} onClick={() => setFile(null)}>✕</button>
             </div>
           ) : (
-            <div
-              style={{ border: `2px dashed ${c.border}`, borderRadius: 8, padding: 28, textAlign: "center", cursor: "pointer" }}
+            <div style={{ border: `2px dashed ${c.border}`, borderRadius: 8, padding: isMobile ? 20 : 28, textAlign: "center", cursor: "pointer" }}
               onClick={() => fileRef.current.click()}
               onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.accent; }}
               onDragLeave={(e) => e.currentTarget.style.borderColor = c.border}
-              onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.border; setFile(e.dataTransfer.files[0] || null); }}
-            >
-              <div style={{ fontSize: 24, marginBottom: 8 }}>☁️</div>
-              <div style={{ fontSize: 13, color: c.textMid }}>Drop file here or <span style={{ color: c.accent }}>browse</span></div>
-              <div style={{ fontSize: 11, color: c.textDim, marginTop: 4 }}>PDF, JPG, PNG — up to 25 MB</div>
+              onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.border; setFile(e.dataTransfer.files[0] || null); }}>
+              <div style={{ fontSize: 22, marginBottom: 6 }}>☁️</div>
+              <div style={{ fontSize: 13, color: c.textMid }}>Tap to upload or drag & drop</div>
+              <div style={{ fontSize: 11, color: c.textDim, marginTop: 3 }}>PDF, JPG, PNG — up to 25 MB</div>
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" style={{ display: "none" }} onChange={(e) => setFile(e.target.files[0] || null)} />
-            </div>
-          )}
-          {file && (
-            <div style={{ marginTop: 10, fontSize: 12, color: c.textMid }}>
-              Claude will extract all questions and marks — this significantly improves grading accuracy.
             </div>
           )}
         </div>

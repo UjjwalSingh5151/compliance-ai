@@ -1,7 +1,22 @@
+import { supabase } from "./supabase";
+
 const BASE = import.meta.env.VITE_API_URL || "";
 
+async function getToken() {
+  if (!supabase) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
+
 async function json(path, opts = {}) {
-  const res = await fetch(`${BASE}${path}`, opts);
+  const token = await getToken();
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Don't set Content-Type for FormData — browser sets it with boundary
+  if (!(opts.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Request failed: ${res.status}`);
@@ -10,20 +25,23 @@ async function json(path, opts = {}) {
 }
 
 export const api = {
-  // Tests
   getTests: () => json("/api/analyzer/tests"),
 
   createTest: (formData) =>
     json("/api/analyzer/tests", { method: "POST", body: formData }),
 
-  // Analyze — streams SSE events, calls onEvent(event) for each
   analyzeSheets: async (testId, files, onEvent) => {
+    const token = await getToken();
     const formData = new FormData();
     for (const file of files) formData.append("sheets", file);
+
+    const headers = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const res = await fetch(`${BASE}/api/analyzer/tests/${testId}/analyze`, {
       method: "POST",
       body: formData,
+      headers,
     });
 
     if (!res.ok) throw new Error(`Server error: ${res.status}`);
@@ -47,21 +65,15 @@ export const api = {
     }
   },
 
-  // Students
   getStudents: () => json("/api/analyzer/students"),
   getStudent: (id) => json(`/api/analyzer/students/${id}`),
-
-  // Results
   getResult: (id) => json(`/api/analyzer/results/${id}`),
 
-  // Teacher comments
   saveComments: (id, comments) =>
     json(`/api/analyzer/results/${id}/comments`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ comments }),
     }),
 
-  // Share (public)
   getShare: (token) => json(`/api/analyzer/share/${token}`),
 };

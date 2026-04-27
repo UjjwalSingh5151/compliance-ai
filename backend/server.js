@@ -128,6 +128,26 @@ async function uploadToStorage(bucket, path, buffer, contentType) {
   return publicUrl;
 }
 
+// Extract and verify the Supabase user from the request's Authorization header
+async function getRequestUser(req) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token || !supabaseAdmin) return null;
+  try {
+    const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+    return user || null;
+  } catch { return null; }
+}
+
+// Get all test IDs owned by a user (used to scope student/result queries)
+async function getUserTestIds(userId) {
+  if (!supabaseAdmin || !userId) return null;
+  const { data } = await supabaseAdmin
+    .from("analyzer_tests")
+    .select("id")
+    .eq("created_by", userId);
+  return (data || []).map((t) => t.id);
+}
+
 const LENIENCY_PROMPTS = {
   1: "Be VERY STRICT. Award full marks only for perfectly correct answers with proper terminology, complete working, and no errors whatsoever.",
   2: "Be STRICT. Minor errors in presentation or terminology should result in mark deductions. Expect complete and well-structured answers.",
@@ -175,9 +195,10 @@ app.post("/api/analyzer/tests", upload.single("questionPaper"), async (req, res)
       return res.json({ test: { id: `local-${Date.now()}`, name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_content: questionPaperContent } });
     }
 
+    const user = await getRequestUser(req);
     const { data, error } = await supabaseAdmin
       .from("analyzer_tests")
-      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent })
+      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent, created_by: user?.id || null })
       .select()
       .single();
     if (error) throw error;
@@ -192,10 +213,13 @@ app.post("/api/analyzer/tests", upload.single("questionPaper"), async (req, res)
 app.get("/api/analyzer/tests", async (req, res) => {
   try {
     if (!supabaseAdmin) return res.json({ tests: [] });
-    const { data, error } = await supabaseAdmin
+    const user = await getRequestUser(req);
+    let query = supabaseAdmin
       .from("analyzer_tests")
       .select("*, analyzer_results(count)")
       .order("created_at", { ascending: false });
+    if (user?.id) query = query.eq("created_by", user.id);
+    const { data, error } = await query;
     if (error) throw error;
     res.json({ tests: data });
   } catch (err) {
@@ -380,9 +404,24 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
 app.get("/api/analyzer/students", async (req, res) => {
   try {
     if (!supabaseAdmin) return res.json({ students: [] });
+    const user = await getRequestUser(req);
+    const testIds = await getUserTestIds(user?.id);
+
+    // If user has no tests yet, return empty
+    if (testIds && testIds.length === 0) return res.json({ students: [] });
+
+    // Get student IDs from results belonging to user's tests
+    let studentQuery = supabaseAdmin.from("analyzer_results").select("student_id");
+    if (testIds) studentQuery = studentQuery.in("test_id", testIds);
+    const { data: resultRows } = await studentQuery;
+    const studentIds = [...new Set((resultRows || []).map((r) => r.student_id).filter(Boolean))];
+
+    if (studentIds.length === 0) return res.json({ students: [] });
+
     const { data, error } = await supabaseAdmin
       .from("analyzer_students")
       .select("*, analyzer_results(count)")
+      .in("id", studentIds)
       .order("name");
     if (error) throw error;
     res.json({ students: data });
@@ -395,14 +434,23 @@ app.get("/api/analyzer/students", async (req, res) => {
 app.get("/api/analyzer/students/:id", async (req, res) => {
   try {
     if (!supabaseAdmin) return res.json({ student: null, results: [] });
-    const [{ data: student }, { data: results }] = await Promise.all([
+    const user = await getRequestUser(req);
+    const testIds = await getUserTestIds(user?.id);
+
+    const [{ data: student }, { data: allResults }] = await Promise.all([
       supabaseAdmin.from("analyzer_students").select("*").eq("id", req.params.id).single(),
       supabaseAdmin.from("analyzer_results")
         .select("id, marks_obtained, total_marks, share_token, analyzed_at, analyzer_tests(name, subject)")
         .eq("student_id", req.params.id)
         .order("analyzed_at", { ascending: false }),
     ]);
-    res.json({ student, results: results || [] });
+
+    // Filter results to only this user's tests
+    const results = testIds
+      ? (allResults || []).filter((r) => testIds.includes(r.test_id || r.analyzer_tests?.id))
+      : allResults || [];
+
+    res.json({ student, results });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -414,10 +462,15 @@ app.get("/api/analyzer/results/:id", async (req, res) => {
     if (!supabaseAdmin) return res.json({ result: null });
     const { data, error } = await supabaseAdmin
       .from("analyzer_results")
-      .select("*, analyzer_tests(name, subject, total_marks), analyzer_students(name, roll_no, class, section)")
+      .select("*, analyzer_tests(name, subject, total_marks, created_by), analyzer_students(name, roll_no, class, section)")
       .eq("id", req.params.id)
       .single();
     if (error) throw error;
+    // Verify ownership
+    const user = await getRequestUser(req);
+    if (user && data?.analyzer_tests?.created_by && data.analyzer_tests.created_by !== user.id) {
+      return res.status(403).json({ error: "Not authorised" });
+    }
     res.json({ result: data });
   } catch (err) {
     res.status(500).json({ error: err.message });
