@@ -88,4 +88,15 @@ export const api = {
       method: "PATCH", body: JSON.stringify({ comments }),
     }),
   getShare: (token) => json(`/api/analyzer/share/${token}`),
+
+  // Student portal
+  getStudentMe: () => json("/api/student/me"),
+  getStudentResults: () => json("/api/student/results"),
+  getStudentResult: (id) => json(`/api/student/results/${id}`),
+  generateRevisionNotes: (id) =>
+    json(`/api/student/results/${id}/revision-notes`, { method: "POST" }),
+  generatePracticeQuestions: (id, refresh = false) =>
+    json(`/api/student/results/${id}/practice-questions`, { method: "POST", body: JSON.stringify({ refresh }) }),
+  submitPracticeAttempt: (practiceSetId, answers) =>
+    json(`/api/student/practice/${practiceSetId}/attempt`, { method: "POST", body: JSON.stringify({ answers }) }),
 };

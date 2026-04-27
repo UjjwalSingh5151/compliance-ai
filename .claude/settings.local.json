@@ -6,7 +6,10 @@
       "Skill(claude-api:*)",
       "Read(//c/Users/mailu/Downloads/**)",
       "Bash(unzip -l files.zip)",
-      "Bash(unzip -o files.zip -d extracted_files)"
+      "Bash(unzip -o files.zip -d extracted_files)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'fix: revert to sonnet model, show answer sheet in share view *)",
+      "Bash(git push *)"
     ]
   }
 }

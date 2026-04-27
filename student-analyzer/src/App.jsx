@@ -16,6 +16,8 @@ import ShareView from "./components/ShareView";
 import AdminPanel from "./components/AdminPanel";
 import SchoolSettings from "./components/SchoolSettings";
 import StudentCRM from "./components/StudentCRM";
+import StudentPortal from "./components/StudentPortal";
+import StudentResultView from "./components/StudentResultView";
 
 const ADMIN_USER_ID = "7f3cd39a-ec15-4053-9c6a-0afad38d2f46";
 
@@ -32,6 +34,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(authEnabled);
   const [schoolInfo, setSchoolInfo] = useState(null);
+  const [studentInfo, setStudentInfo] = useState(null);
   const [schoolLoading, setSchoolLoading] = useState(false);
   const [view, setView] = useState("dashboard");
   const [params, setParams] = useState({});
@@ -49,12 +52,20 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load school info whenever user changes
+  // Load school/student info whenever user changes
   useEffect(() => {
-    if (!user) { setSchoolInfo(null); return; }
+    if (!user) { setSchoolInfo(null); setStudentInfo(null); return; }
     setSchoolLoading(true);
     api.getMySchool()
-      .then(setSchoolInfo)
+      .then((info) => {
+        setSchoolInfo(info);
+        if (!info || info.status === "none") {
+          // Check if this user is a student
+          api.getStudentMe()
+            .then((s) => setStudentInfo(s?.student || null))
+            .catch(() => setStudentInfo(null));
+        }
+      })
       .catch(() => setSchoolInfo({ status: "none" }))
       .finally(() => setSchoolLoading(false));
   }, [user]);
@@ -80,6 +91,51 @@ export default function App() {
   }
 
   if (authEnabled && !user) return <AuthScreen />;
+
+  // Student portal (detected by email match in CRM)
+  if (authEnabled && user && !isAdmin && studentInfo && (!schoolInfo || schoolInfo.status === "none")) {
+    const studentNAV = [{ id: "student-portal", label: "My Results", icon: "📋" }];
+    return (
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", height: "100vh", background: c.bg, color: c.text, fontFamily: "'Inter', sans-serif" }}>
+        {!isMobile && (
+          <div style={{ width: 200, background: "#0d1117", borderRight: `1px solid ${c.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+            <div style={{ padding: "20px 16px", borderBottom: `1px solid ${c.border}` }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>📝 EduGrade</div>
+              <div style={{ fontSize: 10, color: c.textDim, marginTop: 2 }}>Student Portal</div>
+            </div>
+            <nav style={{ flex: 1, padding: "10px 0" }}>
+              {studentNAV.map((tab) => (
+                <button key={tab.id} onClick={() => navigate(tab.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 16px", background: view === tab.id ? c.accentDim : "transparent", border: "none", borderLeft: `3px solid ${view === tab.id ? c.accent : "transparent"}`, color: view === tab.id ? c.accent : c.textMid, fontSize: 13, fontWeight: view === tab.id ? 600 : 400, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                  <span>{tab.icon}</span>{tab.label}
+                </button>
+              ))}
+            </nav>
+            <div style={{ padding: "12px 16px", borderTop: `1px solid ${c.border}` }}>
+              <button onClick={() => supabase.auth.signOut()}
+                style={{ fontSize: 11, color: c.textDim, background: "transparent", border: `1px solid ${c.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", width: "100%", fontFamily: "inherit" }}>
+                Log out
+              </button>
+            </div>
+          </div>
+        )}
+        {isMobile && (
+          <div style={{ background: "#0d1117", borderBottom: `1px solid ${c.border}`, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>📝 EduGrade</div>
+            <button onClick={() => supabase.auth.signOut()}
+              style={{ fontSize: 11, color: c.textDim, background: "transparent", border: `1px solid ${c.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>
+              Log out
+            </button>
+          </div>
+        )}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {view === "student-result"
+            ? <StudentResultView params={params} navigate={navigate} isMobile={isMobile} />
+            : <StudentPortal navigate={navigate} isMobile={isMobile} />}
+        </div>
+      </div>
+    );
+  }
 
   // School gating (admin always bypasses)
   if (authEnabled && user && !isAdmin) {
@@ -115,8 +171,10 @@ export default function App() {
       case "students":       return <StudentList navigate={navigate} isMobile={isMobile} />;
       case "student-detail": return <StudentDetail params={params} navigate={navigate} isMobile={isMobile} />;
       case "result":         return <ResultDetail params={params} navigate={navigate} isMobile={isMobile} />;
-      case "student-crm":   return <StudentCRM navigate={navigate} isMobile={isMobile} />;
+      case "student-crm":    return <StudentCRM navigate={navigate} isMobile={isMobile} />;
       case "school-settings": return <SchoolSettings school={schoolInfo?.school} isMobile={isMobile} />;
+      case "student-portal": return <StudentPortal navigate={navigate} isMobile={isMobile} />;
+      case "student-result": return <StudentResultView params={params} navigate={navigate} isMobile={isMobile} />;
       case "admin":          return isAdmin ? <AdminPanel navigate={navigate} isMobile={isMobile} /> : <Dashboard navigate={navigate} isMobile={isMobile} />;
       default:               return <Dashboard navigate={navigate} isMobile={isMobile} />;
     }
