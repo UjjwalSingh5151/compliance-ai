@@ -169,7 +169,15 @@ async function getUserSchool(userId, userEmail = null) {
 async function requireSchool(req, res, next) {
   const user = await getRequestUser(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
-  const info = await getUserSchool(user.id, user.email);
+  let info = await getUserSchool(user.id, user.email);
+
+  // Admin fallback: if admin has no school, use the first approved school in the DB
+  if (!info && user.id === ADMIN_USER_ID) {
+    const { data: school } = await supabaseAdmin
+      .from("schools").select("*").eq("status", "approved").order("created_at").limit(1).maybeSingle();
+    if (school) info = { school, role: "owner" };
+  }
+
   if (!info) return res.status(403).json({ error: "no_school" });
   if (info.school.status !== "approved") return res.status(403).json({ error: "school_pending" });
   req.user = user; req.school = info.school; req.schoolRole = info.role;
