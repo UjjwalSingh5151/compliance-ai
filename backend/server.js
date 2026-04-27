@@ -232,12 +232,22 @@ app.post("/api/school/members/invite", requireSchool, async (req, res) => {
     if (req.schoolRole !== "owner") return res.status(403).json({ error: "Only school owner can invite" });
     const { email } = req.body;
     if (!email?.trim()) return res.status(400).json({ error: "Email required" });
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Save invite record
     const { data, error } = await supabaseAdmin
       .from("school_members")
-      .upsert({ school_id: req.school.id, invited_email: email.trim().toLowerCase(), role: "teacher", status: "pending" },
+      .upsert({ school_id: req.school.id, invited_email: cleanEmail, role: "teacher", status: "pending" },
         { onConflict: "school_id,invited_email" })
       .select().single();
     if (error) throw error;
+
+    // Send invite email via Supabase (creates account if needed, sends magic link)
+    const { error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(cleanEmail, {
+      data: { invited_by_school: req.school.name },
+    });
+    if (inviteErr) console.warn("Invite email failed:", inviteErr.message);
+
     res.json({ member: data });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
