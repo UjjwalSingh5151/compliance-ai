@@ -12,7 +12,6 @@ async function json(path, opts = {}) {
   const token = await getToken();
   const headers = { ...(opts.headers || {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  // Don't set Content-Type for FormData — browser sets it with boundary
   if (!(opts.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
@@ -25,8 +24,30 @@ async function json(path, opts = {}) {
 }
 
 export const api = {
-  getTests: () => json("/api/analyzer/tests"),
+  // School
+  getMySchool: () => json("/api/school/me"),
+  registerSchool: (name, contact_email) =>
+    json("/api/school", { method: "POST", body: JSON.stringify({ name, contact_email }) }),
+  getMembers: () => json("/api/school/members"),
+  inviteMember: (email) =>
+    json("/api/school/members/invite", { method: "POST", body: JSON.stringify({ email }) }),
+  removeMember: (id) =>
+    json(`/api/school/members/${id}`, { method: "DELETE" }),
 
+  // Admin
+  getAdminSchools: () => json("/api/admin/schools"),
+  updateSchoolStatus: (id, status) =>
+    json(`/api/admin/schools/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+
+  // Student CRM
+  getSchoolStudents: () => json("/api/school/students"),
+  updateStudent: (id, data) =>
+    json(`/api/school/students/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  importStudents: (students) =>
+    json("/api/school/students/import", { method: "POST", body: JSON.stringify({ students }) }),
+
+  // Tests
+  getTests: () => json("/api/analyzer/tests"),
   createTest: (formData) =>
     json("/api/analyzer/tests", { method: "POST", body: formData }),
 
@@ -34,22 +55,15 @@ export const api = {
     const token = await getToken();
     const formData = new FormData();
     for (const file of files) formData.append("sheets", file);
-
     const headers = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-
     const res = await fetch(`${BASE}/api/analyzer/tests/${testId}/analyze`, {
-      method: "POST",
-      body: formData,
-      headers,
+      method: "POST", body: formData, headers,
     });
-
     if (!res.ok) throw new Error(`Server error: ${res.status}`);
-
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
-
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -65,15 +79,13 @@ export const api = {
     }
   },
 
+  // Students & Results
   getStudents: () => json("/api/analyzer/students"),
   getStudent: (id) => json(`/api/analyzer/students/${id}`),
   getResult: (id) => json(`/api/analyzer/results/${id}`),
-
   saveComments: (id, comments) =>
     json(`/api/analyzer/results/${id}/comments`, {
-      method: "PATCH",
-      body: JSON.stringify({ comments }),
+      method: "PATCH", body: JSON.stringify({ comments }),
     }),
-
   getShare: (token) => json(`/api/analyzer/share/${token}`),
 };

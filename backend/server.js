@@ -94,7 +94,9 @@ app.post("/api/agent", async (req, res) => {
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-// ─── Student Analyzer ────────────────────────────────────────────────────────
+// ─── EduGrade: Student Analyzer ──────────────────────────────────────────────
+
+const ADMIN_USER_ID = "7f3cd39a-ec15-4053-9c6a-0afad38d2f46";
 
 function fileToClaudeContent(file) {
   const isPDF = file.mimetype === "application/pdf";
@@ -128,7 +130,6 @@ async function uploadToStorage(bucket, path, buffer, contentType) {
   return publicUrl;
 }
 
-// Extract and verify the Supabase user from the request's Authorization header
 async function getRequestUser(req) {
   const token = req.headers.authorization?.replace("Bearer ", "");
   if (!token || !supabaseAdmin) return null;
@@ -138,14 +139,47 @@ async function getRequestUser(req) {
   } catch { return null; }
 }
 
-// Get all test IDs owned by a user (used to scope student/result queries)
-async function getUserTestIds(userId) {
+async function getUserSchool(userId, userEmail = null) {
   if (!supabaseAdmin || !userId) return null;
-  const { data } = await supabaseAdmin
-    .from("analyzer_tests")
-    .select("id")
-    .eq("created_by", userId);
-  return (data || []).map((t) => t.id);
+
+  // 1. Check if owner of a school
+  const { data: owned } = await supabaseAdmin
+    .from("schools").select("*").eq("owner_user_id", userId).maybeSingle();
+  if (owned) return { school: owned, role: "owner" };
+
+  // 2. Check if accepted member
+  const { data: member } = await supabaseAdmin
+    .from("school_members").select("*, schools(*)").eq("user_id", userId).eq("status", "accepted").maybeSingle();
+  if (member?.schools) return { school: member.schools, role: member.role };
+
+  // 3. Auto-accept pending invite by email
+  if (userEmail) {
+    const { data: invite } = await supabaseAdmin
+      .from("school_members").select("*, schools(*)")
+      .eq("invited_email", userEmail.toLowerCase()).eq("status", "pending").maybeSingle();
+    if (invite?.schools) {
+      await supabaseAdmin.from("school_members")
+        .update({ user_id: userId, status: "accepted" }).eq("id", invite.id);
+      return { school: invite.schools, role: "teacher" };
+    }
+  }
+  return null;
+}
+
+async function requireSchool(req, res, next) {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const info = await getUserSchool(user.id, user.email);
+  if (!info) return res.status(403).json({ error: "no_school" });
+  if (info.school.status !== "approved") return res.status(403).json({ error: "school_pending" });
+  req.user = user; req.school = info.school; req.schoolRole = info.role;
+  next();
+}
+
+async function requireAdmin(req, res, next) {
+  const user = await getRequestUser(req);
+  if (!user || user.id !== ADMIN_USER_ID) return res.status(403).json({ error: "Admin only" });
+  req.user = user; next();
 }
 
 const LENIENCY_PROMPTS = {
@@ -155,6 +189,158 @@ const LENIENCY_PROMPTS = {
   4: "Be LENIENT. Award marks generously if the student demonstrates understanding, even with minor errors or incomplete steps.",
   5: "Be VERY LENIENT. Give maximum benefit of doubt. Award marks for any reasonable attempt that shows partial understanding.",
 };
+
+// ─── School Management ────────────────────────────────────────────────────────
+
+app.get("/api/school/me", async (req, res) => {
+  try {
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const info = await getUserSchool(user.id, user.email);
+    if (!info) return res.json({ status: "none" });
+    return res.json({ status: info.school.status, school: info.school, role: info.role, isAdmin: user.id === ADMIN_USER_ID });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/school", async (req, res) => {
+  try {
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { name, contact_email } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "School name required" });
+    const existing = await getUserSchool(user.id, user.email);
+    if (existing) return res.status(400).json({ error: "Already have a school registered" });
+    const { data, error } = await supabaseAdmin
+      .from("schools").insert({ name: name.trim(), contact_email: contact_email?.trim() || null, owner_user_id: user.id })
+      .select().single();
+    if (error) throw error;
+    res.json({ school: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/school/members", requireSchool, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("school_members").select("*").eq("school_id", req.school.id).order("created_at");
+    if (error) throw error;
+    res.json({ members: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/school/members/invite", requireSchool, async (req, res) => {
+  try {
+    if (req.schoolRole !== "owner") return res.status(403).json({ error: "Only school owner can invite" });
+    const { email } = req.body;
+    if (!email?.trim()) return res.status(400).json({ error: "Email required" });
+    const { data, error } = await supabaseAdmin
+      .from("school_members")
+      .upsert({ school_id: req.school.id, invited_email: email.trim().toLowerCase(), role: "teacher", status: "pending" },
+        { onConflict: "school_id,invited_email" })
+      .select().single();
+    if (error) throw error;
+    res.json({ member: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/school/members/:id", requireSchool, async (req, res) => {
+  try {
+    if (req.schoolRole !== "owner") return res.status(403).json({ error: "Only owner can remove members" });
+    const { error } = await supabaseAdmin
+      .from("school_members").delete().eq("id", req.params.id).eq("school_id", req.school.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+app.get("/api/admin/schools", requireAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("schools").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    res.json({ schools: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch("/api/admin/schools/:id", requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["approved", "rejected", "pending"].includes(status)) return res.status(400).json({ error: "Invalid status" });
+    const { data, error } = await supabaseAdmin
+      .from("schools").update({ status }).eq("id", req.params.id).select().single();
+    if (error) throw error;
+    res.json({ school: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Student CRM ──────────────────────────────────────────────────────────────
+
+app.get("/api/school/students", requireSchool, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("analyzer_students")
+      .select("*, analyzer_results(count)")
+      .eq("school_id", req.school.id)
+      .order("class").order("roll_no");
+    if (error) throw error;
+    res.json({ students: data || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch("/api/school/students/:id", requireSchool, async (req, res) => {
+  try {
+    const allowed = ["email", "name", "roll_no", "class", "academic_year", "section"];
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
+    const { data, error } = await supabaseAdmin
+      .from("analyzer_students").update(updates).eq("id", req.params.id).eq("school_id", req.school.id).select().single();
+    if (error) throw error;
+    res.json({ student: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/school/students/import — frontend parses Excel, sends JSON rows
+app.post("/api/school/students/import", requireSchool, async (req, res) => {
+  try {
+    const { students } = req.body;
+    if (!Array.isArray(students) || !students.length) return res.status(400).json({ error: "No students provided" });
+
+    let imported = 0, updated = 0;
+    for (const s of students) {
+      const roll_no = s.roll_no?.toString().trim();
+      const cls = s.class?.toString().trim();
+      const academic_year = s.academic_year?.toString().trim();
+      if (!roll_no) continue;
+
+      const record = {
+        school_id: req.school.id,
+        name: s.name?.trim() || null,
+        roll_no,
+        class: cls || null,
+        academic_year: academic_year || null,
+        email: s.email?.trim().toLowerCase() || null,
+      };
+
+      // Check for existing match
+      let query = supabaseAdmin.from("analyzer_students").select("id")
+        .eq("school_id", req.school.id).eq("roll_no", roll_no);
+      if (cls) query = query.eq("class", cls);
+      if (academic_year) query = query.eq("academic_year", academic_year);
+      const { data: existing } = await query.maybeSingle();
+
+      if (existing) {
+        await supabaseAdmin.from("analyzer_students").update(record).eq("id", existing.id);
+        updated++;
+      } else {
+        await supabaseAdmin.from("analyzer_students").insert(record);
+        imported++;
+      }
+    }
+    res.json({ imported, updated, total: students.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
 // POST /api/analyzer/tests — create test + optionally extract question paper
 app.post("/api/analyzer/tests", upload.single("questionPaper"), async (req, res) => {
@@ -196,9 +382,10 @@ app.post("/api/analyzer/tests", upload.single("questionPaper"), async (req, res)
     }
 
     const user = await getRequestUser(req);
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
     const { data, error } = await supabaseAdmin
       .from("analyzer_tests")
-      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent, created_by: user?.id || null })
+      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent, created_by: user?.id || null, school_id: schoolInfo?.school?.id || null })
       .select()
       .single();
     if (error) throw error;
@@ -214,11 +401,16 @@ app.get("/api/analyzer/tests", async (req, res) => {
   try {
     if (!supabaseAdmin) return res.json({ tests: [] });
     const user = await getRequestUser(req);
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
     let query = supabaseAdmin
       .from("analyzer_tests")
       .select("*, analyzer_results(count)")
       .order("created_at", { ascending: false });
-    if (user?.id) query = query.eq("created_by", user.id);
+    if (schoolInfo?.school?.id) {
+      query = query.eq("school_id", schoolInfo.school.id);
+    } else if (user?.id) {
+      query = query.eq("created_by", user.id);
+    }
     const { data, error } = await query;
     if (error) throw error;
     res.json({ tests: data });
@@ -278,7 +470,7 @@ GRADING STRICTNESS: ${leniencyInstruction}
 ${instructions ? `\nSPECIAL INSTRUCTIONS FROM TEACHER:\n${instructions}\n` : ""}
 
 Your task:
-1. Extract the student's profile from the first page or header (roll number, name, class/grade, section, subject).
+1. Extract the student's profile from the first page or header (roll number, name, class/grade, section, subject, academic year).
 2. For EACH question: read the student's answer carefully, then evaluate it against the expected correct answer.
 3. Provide your reasoning BEFORE awarding marks — explain what is correct, what is missing or wrong, and why you are giving those marks.
 4. Identify specific improvement areas and strengths based on the overall performance.
@@ -288,9 +480,10 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
   "student": {
     "roll_no": "roll number as written",
     "name": "full name as written",
-    "class": "class or grade",
+    "class": "class or grade e.g. 10 or X",
     "section": "section if visible",
-    "subject": "subject name"
+    "subject": "subject name",
+    "academic_year": "academic year e.g. 2024-25 or 2025, extract from sheet header if visible, else null"
   },
   "questions": [
     {
@@ -345,22 +538,28 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
             file.mimetype
           );
 
-          // Upsert student by roll number
+          // Get school_id from test
+          const { data: testRow } = await supabaseAdmin
+            .from("analyzer_tests").select("school_id").eq("id", testId).single();
+          const schoolId = testRow?.school_id || null;
+
+          // Upsert student — school-scoped by roll + class + academic_year
           if (student.roll_no) {
-            const { data: existing } = await supabaseAdmin
-              .from("analyzer_students")
-              .select("id")
-              .eq("roll_no", student.roll_no)
-              .maybeSingle();
+            let q = supabaseAdmin.from("analyzer_students").select("id, email")
+              .eq("roll_no", student.roll_no);
+            if (schoolId) q = q.eq("school_id", schoolId);
+            if (student.class) q = q.eq("class", student.class);
+            if (student.academic_year) q = q.eq("academic_year", student.academic_year);
+            const { data: existing } = await q.maybeSingle();
 
             if (existing) {
               await supabaseAdmin.from("analyzer_students")
-                .update({ name: student.name, class: student.class, section: student.section })
+                .update({ name: student.name, section: student.section })
                 .eq("id", existing.id);
               studentId = existing.id;
             } else {
               const { data: ns } = await supabaseAdmin.from("analyzer_students")
-                .insert({ roll_no: student.roll_no, name: student.name, class: student.class, section: student.section })
+                .insert({ roll_no: student.roll_no, name: student.name, class: student.class, section: student.section, academic_year: student.academic_year || null, school_id: schoolId })
                 .select("id").single();
               studentId = ns?.id;
             }
@@ -400,31 +599,20 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
   }
 });
 
-// GET /api/analyzer/students
+// GET /api/analyzer/students — students who have results in school's tests
 app.get("/api/analyzer/students", async (req, res) => {
   try {
     if (!supabaseAdmin) return res.json({ students: [] });
     const user = await getRequestUser(req);
-    const testIds = await getUserTestIds(user?.id);
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
+    const schoolId = schoolInfo?.school?.id;
 
-    // If user has no tests yet, return empty
-    if (testIds && testIds.length === 0) return res.json({ students: [] });
-
-    // Get student IDs from results belonging to user's tests
-    let studentQuery = supabaseAdmin.from("analyzer_results").select("student_id");
-    if (testIds) studentQuery = studentQuery.in("test_id", testIds);
-    const { data: resultRows } = await studentQuery;
-    const studentIds = [...new Set((resultRows || []).map((r) => r.student_id).filter(Boolean))];
-
-    if (studentIds.length === 0) return res.json({ students: [] });
-
-    const { data, error } = await supabaseAdmin
-      .from("analyzer_students")
-      .select("*, analyzer_results(count)")
-      .in("id", studentIds)
-      .order("name");
+    let query = supabaseAdmin.from("analyzer_students")
+      .select("*, analyzer_results(count)").order("name");
+    if (schoolId) query = query.eq("school_id", schoolId);
+    const { data, error } = await query;
     if (error) throw error;
-    res.json({ students: data });
+    res.json({ students: data || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -435,22 +623,23 @@ app.get("/api/analyzer/students/:id", async (req, res) => {
   try {
     if (!supabaseAdmin) return res.json({ student: null, results: [] });
     const user = await getRequestUser(req);
-    const testIds = await getUserTestIds(user?.id);
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
+    const schoolId = schoolInfo?.school?.id;
 
-    const [{ data: student }, { data: allResults }] = await Promise.all([
+    const [{ data: student }, { data: results }] = await Promise.all([
       supabaseAdmin.from("analyzer_students").select("*").eq("id", req.params.id).single(),
       supabaseAdmin.from("analyzer_results")
-        .select("id, marks_obtained, total_marks, share_token, analyzed_at, analyzer_tests(name, subject)")
+        .select("id, test_id, marks_obtained, total_marks, share_token, analyzed_at, analyzer_tests(id, name, subject)")
         .eq("student_id", req.params.id)
         .order("analyzed_at", { ascending: false }),
     ]);
 
-    // Filter results to only this user's tests
-    const results = testIds
-      ? (allResults || []).filter((r) => testIds.includes(r.test_id || r.analyzer_tests?.id))
-      : allResults || [];
+    // Filter results to this school's tests
+    const filtered = schoolId
+      ? (results || []).filter((r) => r.analyzer_tests)
+      : results || [];
 
-    res.json({ student, results });
+    res.json({ student, results: filtered });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
