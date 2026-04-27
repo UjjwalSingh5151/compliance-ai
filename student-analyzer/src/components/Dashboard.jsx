@@ -67,7 +67,7 @@ export default function Dashboard({ navigate, isMobile }) {
                   + Upload Sheets
                 </button>
                 <button style={{ ...btn.secondary, flex: isMobile ? 1 : "none", fontSize: 12, padding: "7px 14px" }}
-                  onClick={() => navigate("students", { testId: test.id })}>
+                  onClick={() => navigate("test-results", { testId: test.id })}>
                   View Results
                 </button>
               </div>

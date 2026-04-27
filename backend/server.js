@@ -693,6 +693,35 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
   }
 });
 
+// GET /api/analyzer/tests/:testId/results — all results for a specific test
+app.get("/api/analyzer/tests/:testId/results", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.json({ test: null, results: [] });
+    const { testId } = req.params;
+    const user = await getRequestUser(req);
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
+
+    const { data: test, error: testErr } = await supabaseAdmin
+      .from("analyzer_tests")
+      .select("id, name, subject, total_marks, leniency, created_by")
+      .eq("id", testId).single();
+    if (testErr || !test) return res.status(404).json({ error: "Test not found" });
+
+    // Auth: teacher must own the test; owner can see all school tests
+    if (user && schoolInfo?.role === "teacher" && test.created_by !== user.id) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { data: results, error } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("id, marks_obtained, total_marks, analyzed_at, share_token, analysis, analyzer_students(id, name, roll_no, class, section, academic_year, email)")
+      .eq("test_id", testId)
+      .order("analyzed_at", { ascending: false });
+    if (error) throw error;
+    res.json({ test, results: results || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/analyzer/students — students who have results in school's tests
 app.get("/api/analyzer/students", async (req, res) => {
   try {

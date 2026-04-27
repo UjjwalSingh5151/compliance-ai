@@ -79,7 +79,7 @@ export default function BulkUpload({ params, navigate, isMobile }) {
           </p>
         </div>
         {done && doneCount > 0 && (
-          <button style={{ ...btn.secondary, fontSize: 12, whiteSpace: "nowrap" }} onClick={() => navigate("students")}>
+          <button style={{ ...btn.secondary, fontSize: 12, whiteSpace: "nowrap" }} onClick={() => navigate("test-results", { testId })}>
             View Results →
           </button>
         )}

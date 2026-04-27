@@ -18,6 +18,7 @@ import SchoolSettings from "./components/SchoolSettings";
 import StudentCRM from "./components/StudentCRM";
 import StudentPortal from "./components/StudentPortal";
 import StudentResultView from "./components/StudentResultView";
+import TestResults from "./components/TestResults";
 
 const ADMIN_USER_ID = "7f3cd39a-ec15-4053-9c6a-0afad38d2f46";
 
@@ -189,6 +190,7 @@ export default function App() {
       case "dashboard":      return <Dashboard navigate={navigate} isMobile={isMobile} />;
       case "new-test":       return <NewTest navigate={navigate} isMobile={isMobile} />;
       case "upload":         return <BulkUpload params={params} navigate={navigate} isMobile={isMobile} />;
+      case "test-results":   return <TestResults params={params} navigate={navigate} isMobile={isMobile} />;
       case "students":       return <StudentList navigate={navigate} isMobile={isMobile} />;
       case "student-detail": return <StudentDetail params={params} navigate={navigate} isMobile={isMobile} />;
       case "result":         return <ResultDetail params={params} navigate={navigate} isMobile={isMobile} />;

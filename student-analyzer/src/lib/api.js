@@ -50,6 +50,7 @@ export const api = {
 
   // Tests
   getTests: () => json("/api/analyzer/tests"),
+  getTestResults: (testId) => json(`/api/analyzer/tests/${testId}/results`),
   createTest: (formData) =>
     json("/api/analyzer/tests", { method: "POST", body: formData }),
   extractPaper: (file) => {
