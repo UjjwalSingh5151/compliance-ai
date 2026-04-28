@@ -569,12 +569,12 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
   "questions": [
     {
       "no": 1,
-      "student_answer": "Transcribe or clearly summarize exactly what the student has written for this question. Be detailed.",
-      "expected_answer": "What the correct answer should be based on the question paper",
-      "reasoning": "Step-by-step reasoning: what the student got right, what is wrong or missing, and how the marks were calculated based on the strictness level",
+      "student_answer": "1-2 sentence summary of what the student wrote.",
+      "expected_answer": "The correct answer in 1-2 sentences.",
+      "reasoning": "2-3 sentences: what is correct, what is missing or wrong, how marks were calculated.",
       "marks_awarded": 8,
       "marks_available": 10,
-      "feedback": "Specific, actionable feedback written directly to the student on how to improve this answer",
+      "feedback": "One concise, actionable sentence of feedback directly to the student.",
       "is_correct": false
     }
   ],
@@ -582,7 +582,7 @@ Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) i
   "total_marks": ${totalMarks},
   "improvement_areas": ["specific topic or skill needing improvement", "another area"],
   "strengths": ["what the student did well", "another strength"],
-  "overall_feedback": "2-3 sentence honest overall assessment of performance and what to focus on next"
+  "overall_feedback": "1-2 sentence honest overall assessment of performance and what to focus on next."
 }`;
 
         const response = await client.messages.create({

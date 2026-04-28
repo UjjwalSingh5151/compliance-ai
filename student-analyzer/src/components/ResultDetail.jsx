@@ -28,9 +28,9 @@ function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMo
           <span style={{ fontSize: 12, fontWeight: 700, color: markColor }}>Q{q.no}</span>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {q.student_answer && (
+          {q.feedback && (
             <div style={{ fontSize: 12, color: c.textMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {q.student_answer}
+              {q.feedback}
             </div>
           )}
         </div>

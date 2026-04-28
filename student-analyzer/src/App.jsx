@@ -28,6 +28,30 @@ function getShareToken() {
   return null;
 }
 
+// Build hash string from view + params
+function viewToHash(v, p = {}) {
+  if (v === "dashboard") return "#/";
+  if (p.testId) return `#/${v}/${p.testId}`;
+  if (p.resultId) return `#/${v}/${p.resultId}`;
+  if (p.studentId) return `#/${v}/${p.studentId}`;
+  return `#/${v}`;
+}
+
+// Parse hash into { view, params } on initial load
+function hashToView() {
+  const hash = window.location.hash;
+  if (!hash || hash === "#" || hash === "#/") return { view: "dashboard", params: {} };
+  if (hash.startsWith("#/share/")) return { view: "dashboard", params: {} }; // handled separately
+  const parts = hash.replace(/^#\//, "").split("/");
+  const v = parts[0];
+  const id = parts[1];
+  if (v === "result" && id) return { view: "result", params: { resultId: id } };
+  if (v === "test-results" && id) return { view: "test-results", params: { testId: id } };
+  if (v === "student-detail" && id) return { view: "student-detail", params: { studentId: id } };
+  if (v === "upload" && id) return { view: "upload", params: { testId: id } };
+  return { view: v || "dashboard", params: {} };
+}
+
 export default function App() {
   const shareToken = getShareToken();
   if (shareToken) return <ShareView token={shareToken} />;
@@ -37,8 +61,9 @@ export default function App() {
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [studentInfo, setStudentInfo] = useState(null);
   const [schoolLoading, setSchoolLoading] = useState(false);
-  const [view, setView] = useState("dashboard");
-  const [params, setParams] = useState({});
+  const initial = hashToView();
+  const [view, setView] = useState(initial.view);
+  const [params, setParams] = useState(initial.params);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -59,7 +84,7 @@ export default function App() {
 
   // Browser back/forward support
   useEffect(() => {
-    window.history.replaceState({ view: "dashboard", params: {} }, "");
+    window.history.replaceState({ view: initial.view, params: initial.params }, "", viewToHash(initial.view, initial.params));
     const handlePop = (e) => {
       if (e.state?.view) {
         setView(e.state.view);
@@ -89,7 +114,8 @@ export default function App() {
   }, [user]);
 
   const navigate = (v, p = {}) => {
-    window.history.pushState({ view: v, params: p }, "");
+    const hash = viewToHash(v, p);
+    window.history.pushState({ view: v, params: p }, "", hash);
     setView(v);
     setParams(p);
   };

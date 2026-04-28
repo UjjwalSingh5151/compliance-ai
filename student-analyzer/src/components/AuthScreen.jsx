@@ -16,8 +16,13 @@ export default function AuthScreen() {
     setLoading(true); setError(null); setSuccess(null);
     if (mode === "signup") {
       const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
-      if (error) setError(error.message);
-      else setSuccess("Account created! Check your email to confirm, then log in.");
+      if (error) {
+        if (error.message?.toLowerCase().includes("rate limit") || error.status === 429) {
+          setError("Too many sign-up attempts. Please wait a few minutes and try again, or contact your admin to be invited directly.");
+        } else {
+          setError(error.message);
+        }
+      } else setSuccess("Account created! Check your email to confirm, then log in.");
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);

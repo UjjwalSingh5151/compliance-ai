@@ -54,9 +54,12 @@ export default function StudentList({ navigate, isMobile }) {
                 {(student.name || "?").slice(0, 2).toUpperCase()}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: c.text }}>{student.name || "Unknown"}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: student.name ? c.text : c.textDim }}>
+                  {student.name || (student.roll_no ? `Roll No. ${student.roll_no}` : "Unidentified Student")}
+                </div>
                 <div style={{ fontSize: 12, color: c.textMid, marginTop: 1 }}>
-                  {student.roll_no && <span style={{ marginRight: 8 }}>Roll: {student.roll_no}</span>}
+                  {!student.name && student.roll_no && <span style={{ marginRight: 8, color: c.warning, fontSize: 11 }}>Name not extracted — assign in test results</span>}
+                  {student.name && student.roll_no && <span style={{ marginRight: 8 }}>Roll: {student.roll_no}</span>}
                   {student.class && <span style={{ marginRight: 8 }}>Class: {student.class}{student.section ? `-${student.section}` : ""}</span>}
                   <span>{count} test{count !== 1 ? "s" : ""}</span>
                 </div>

@@ -200,62 +200,94 @@ export default function StudentCRM({ navigate, isMobile }) {
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map((s) => {
-          const count = s.analyzer_results?.[0]?.count || 0;
-          const isEditing = editingId === s.id;
-          return (
-            <div key={s.id} style={{ ...card, padding: isMobile ? 12 : 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 19, background: c.accentDim, border: `1px solid ${c.accent}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: c.accent, flexShrink: 0 }}>
-                  {(s.name || "?").slice(0, 2).toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: c.text }}>{s.name || "Unknown"}</div>
-                  <div style={{ fontSize: 12, color: c.textMid, marginTop: 1, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {s.roll_no && <span>Roll: {s.roll_no}</span>}
-                    {s.class && <span>Class: {s.class}</span>}
-                    {s.academic_year && <span>{s.academic_year}</span>}
-                    <span>{count} test{count !== 1 ? "s" : ""}</span>
-                  </div>
-                </div>
-                <button style={{ ...btn.ghost, fontSize: 11, padding: "4px 10px", flexShrink: 0 }}
-                  onClick={() => navigate("student-detail", { studentId: s.id })}>
-                  Results →
-                </button>
-              </div>
+      {(() => {
+        // Group: class → section → students
+        const grouped = {};
+        filtered.forEach((s) => {
+          const cls = s.class || "—";
+          const sec = s.section || "—";
+          if (!grouped[cls]) grouped[cls] = {};
+          if (!grouped[cls][sec]) grouped[cls][sec] = [];
+          grouped[cls][sec].push(s);
+        });
+        const classes = Object.keys(grouped).sort((a, b) => a === "—" ? 1 : b === "—" ? -1 : a.localeCompare(b, undefined, { numeric: true }));
 
-              {/* Email row */}
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.border}` }}>
-                {isEditing ? (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap" }}>
-                    <input style={{ ...input, flex: 1, fontSize: 12, padding: "6px 10px" }} type="email"
-                      placeholder="student@email.com" value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && saveEmail(s.id)} autoFocus />
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button style={{ ...btn.primary, fontSize: 11, padding: "5px 12px", opacity: saving ? 0.6 : 1 }}
-                        onClick={() => saveEmail(s.id)} disabled={saving}>Save</button>
-                      <button style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}
-                        onClick={() => setEditingId(null)}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 12, color: s.email ? c.textMid : c.textDim, flex: 1 }}>
-                      {s.email || "No email — click to add"}
-                    </span>
-                    <button style={{ ...btn.ghost, fontSize: 11, padding: "3px 10px" }}
-                      onClick={() => { setEditingId(s.id); setEditEmail(s.email || ""); }}>
-                      {s.email ? "Edit" : "Add email"}
-                    </button>
-                  </div>
-                )}
+        return classes.map((cls) => {
+          const sections = Object.keys(grouped[cls]).sort((a, b) => a === "—" ? 1 : b === "—" ? -1 : a.localeCompare(b));
+          const multiSection = sections.length > 1 || sections[0] !== "—";
+          return (
+            <div key={cls} style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: c.accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8, paddingLeft: 2 }}>
+                {cls === "—" ? "No Class" : `Class ${cls}`}
               </div>
+              {sections.map((sec) => (
+                <div key={sec} style={{ marginBottom: multiSection ? 14 : 0 }}>
+                  {multiSection && (
+                    <div style={{ fontSize: 10, fontWeight: 600, color: c.textDim, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, paddingLeft: 2 }}>
+                      {sec === "—" ? "No Section" : `Section ${sec}`}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {grouped[cls][sec].map((s) => {
+                      const count = s.analyzer_results?.[0]?.count || 0;
+                      const isEditing = editingId === s.id;
+                      return (
+                        <div key={s.id} style={{ ...card, padding: isMobile ? 12 : 16 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ width: 38, height: 38, borderRadius: 19, background: c.accentDim, border: `1px solid ${c.accent}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: c.accent, flexShrink: 0 }}>
+                              {(s.name || "?").slice(0, 2).toUpperCase()}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: c.text }}>{s.name || "Unknown"}</div>
+                              <div style={{ fontSize: 12, color: c.textMid, marginTop: 1, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {s.roll_no && <span>Roll: {s.roll_no}</span>}
+                                {s.academic_year && <span>{s.academic_year}</span>}
+                                <span>{count} test{count !== 1 ? "s" : ""}</span>
+                              </div>
+                            </div>
+                            <button style={{ ...btn.ghost, fontSize: 11, padding: "4px 10px", flexShrink: 0 }}
+                              onClick={() => navigate("student-detail", { studentId: s.id })}>
+                              Results →
+                            </button>
+                          </div>
+
+                          {/* Email row */}
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.border}` }}>
+                            {isEditing ? (
+                              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap" }}>
+                                <input style={{ ...input, flex: 1, fontSize: 12, padding: "6px 10px" }} type="email"
+                                  placeholder="student@email.com" value={editEmail}
+                                  onChange={(e) => setEditEmail(e.target.value)}
+                                  onKeyDown={(e) => e.key === "Enter" && saveEmail(s.id)} autoFocus />
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button style={{ ...btn.primary, fontSize: 11, padding: "5px 12px", opacity: saving ? 0.6 : 1 }}
+                                    onClick={() => saveEmail(s.id)} disabled={saving}>Save</button>
+                                  <button style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}
+                                    onClick={() => setEditingId(null)}>Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 12, color: s.email ? c.textMid : c.textDim, flex: 1 }}>
+                                  {s.email || "No email — click to add"}
+                                </span>
+                                <button style={{ ...btn.ghost, fontSize: 11, padding: "3px 10px" }}
+                                  onClick={() => { setEditingId(s.id); setEditEmail(s.email || ""); }}>
+                                  {s.email ? "Edit" : "Add email"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           );
-        })}
-      </div>
+        });
+      })()}
     </div>
   );
 }
