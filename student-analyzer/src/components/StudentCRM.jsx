@@ -201,22 +201,32 @@ export default function StudentCRM({ navigate, isMobile }) {
       )}
 
       {(() => {
-        // Group: class → section → students
+        // Group: academic_year → class → section → students
         const grouped = {};
         filtered.forEach((s) => {
+          const yr = s.academic_year || "—";
           const cls = s.class || "—";
           const sec = s.section || "—";
-          if (!grouped[cls]) grouped[cls] = {};
-          if (!grouped[cls][sec]) grouped[cls][sec] = [];
-          grouped[cls][sec].push(s);
+          if (!grouped[yr]) grouped[yr] = {};
+          if (!grouped[yr][cls]) grouped[yr][cls] = {};
+          if (!grouped[yr][cls][sec]) grouped[yr][cls][sec] = [];
+          grouped[yr][cls][sec].push(s);
         });
-        const classes = Object.keys(grouped).sort((a, b) => a === "—" ? 1 : b === "—" ? -1 : a.localeCompare(b, undefined, { numeric: true }));
+        const sk = (k) => (k === "—" ? "￿" : k);
+        const years = Object.keys(grouped).sort((a, b) => sk(b).localeCompare(sk(a)));
 
-        return classes.map((cls) => {
-          const sections = Object.keys(grouped[cls]).sort((a, b) => a === "—" ? 1 : b === "—" ? -1 : a.localeCompare(b));
+        return years.map((yr) => {
+          const classes = Object.keys(grouped[yr]).sort((a, b) => sk(a).localeCompare(sk(b), undefined, { numeric: true }));
+          return (
+            <div key={yr} style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: c.textDim, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, paddingLeft: 2 }}>
+                {yr === "—" ? "No Academic Year" : `AY ${yr}`}
+              </div>
+              {classes.map((cls) => {
+          const sections = Object.keys(grouped[yr][cls]).sort((a, b) => sk(a).localeCompare(sk(b)));
           const multiSection = sections.length > 1 || sections[0] !== "—";
           return (
-            <div key={cls} style={{ marginBottom: 20 }}>
+            <div key={cls} style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: c.accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8, paddingLeft: 2 }}>
                 {cls === "—" ? "No Class" : `Class ${cls}`}
               </div>
@@ -228,7 +238,7 @@ export default function StudentCRM({ navigate, isMobile }) {
                     </div>
                   )}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {grouped[cls][sec].map((s) => {
+                    {grouped[yr][cls][sec].map((s) => {
                       const count = s.analyzer_results?.[0]?.count || 0;
                       const isEditing = editingId === s.id;
                       return (
@@ -284,6 +294,9 @@ export default function StudentCRM({ navigate, isMobile }) {
                   </div>
                 </div>
               ))}
+            </div>
+          );
+        })}
             </div>
           );
         });
