@@ -24,6 +24,9 @@ async function json(path, opts = {}) {
 }
 
 export const api = {
+  // Auth
+  getAuthMe: () => json("/api/auth/me"),
+
   // School
   getMySchool: () => json("/api/school/me"),
   registerSchool: (name, contact_email) =>

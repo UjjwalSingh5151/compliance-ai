@@ -3,6 +3,7 @@ import { supabase, authEnabled } from "./lib/supabase";
 import { useIsMobile } from "./lib/mobile";
 import { api } from "./lib/api";
 import { c } from "./lib/theme";
+import ErrorBoundary from "./components/ErrorBoundary";
 import AuthScreen from "./components/AuthScreen";
 import SchoolSetup from "./components/SchoolSetup";
 import PendingApproval from "./components/PendingApproval";
@@ -19,8 +20,6 @@ import StudentCRM from "./components/StudentCRM";
 import StudentPortal from "./components/StudentPortal";
 import StudentResultView from "./components/StudentResultView";
 import TestResults from "./components/TestResults";
-
-const ADMIN_USER_ID = "7f3cd39a-ec15-4053-9c6a-0afad38d2f46";
 
 function getShareToken() {
   const hash = window.location.hash;
@@ -58,6 +57,7 @@ export default function App() {
 
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(authEnabled);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [studentInfo, setStudentInfo] = useState(null);
   const [schoolLoading, setSchoolLoading] = useState(false);
@@ -95,22 +95,22 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePop);
   }, []);
 
-  // Load school/student info whenever user changes
+  // Load school/student info + admin flag whenever user changes
   useEffect(() => {
-    if (!user) { setSchoolInfo(null); setStudentInfo(null); return; }
+    if (!user) { setSchoolInfo(null); setStudentInfo(null); setIsAdmin(false); return; }
     setSchoolLoading(true);
-    api.getMySchool()
-      .then((info) => {
-        setSchoolInfo(info);
-        if (!info || info.status === "none") {
-          // Check if this user is a student
-          api.getStudentMe()
-            .then((s) => setStudentInfo(s?.student || null))
-            .catch(() => setStudentInfo(null));
-        }
-      })
-      .catch(() => setSchoolInfo({ status: "none" }))
-      .finally(() => setSchoolLoading(false));
+    Promise.all([
+      api.getMySchool().catch(() => ({ status: "none" })),
+      api.getAuthMe().catch(() => ({ isAdmin: false })),
+    ]).then(([info, authMe]) => {
+      setSchoolInfo(info);
+      setIsAdmin(authMe.isAdmin ?? false);
+      if (!info || info.status === "none") {
+        api.getStudentMe()
+          .then((s) => setStudentInfo(s?.student || null))
+          .catch(() => setStudentInfo(null));
+      }
+    }).finally(() => setSchoolLoading(false));
   }, [user]);
 
   const navigate = (v, p = {}) => {
@@ -119,7 +119,6 @@ export default function App() {
     setView(v);
     setParams(p);
   };
-  const isAdmin = user?.id === ADMIN_USER_ID;
 
   const isOwner = isAdmin || schoolInfo?.role === "owner";
   const NAV = [
@@ -212,20 +211,25 @@ export default function App() {
   const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || null;
 
   const renderView = () => {
+    const wrap = (label, node) => (
+      <ErrorBoundary title={`${label} failed to load`} description="Try refreshing the page. If the issue persists, contact support.">
+        {node}
+      </ErrorBoundary>
+    );
     switch (view) {
-      case "dashboard":      return <Dashboard navigate={navigate} isMobile={isMobile} />;
-      case "new-test":       return <NewTest navigate={navigate} isMobile={isMobile} />;
-      case "upload":         return <BulkUpload params={params} navigate={navigate} isMobile={isMobile} />;
-      case "test-results":   return <TestResults params={params} navigate={navigate} isMobile={isMobile} />;
-      case "students":       return <StudentList navigate={navigate} isMobile={isMobile} />;
-      case "student-detail": return <StudentDetail params={params} navigate={navigate} isMobile={isMobile} />;
-      case "result":         return <ResultDetail params={params} navigate={navigate} isMobile={isMobile} />;
-      case "student-crm":    return <StudentCRM navigate={navigate} isMobile={isMobile} />;
-      case "school-settings": return <SchoolSettings school={schoolInfo?.school} isMobile={isMobile} />;
-      case "student-portal": return <StudentPortal navigate={navigate} isMobile={isMobile} />;
-      case "student-result": return <StudentResultView params={params} navigate={navigate} isMobile={isMobile} />;
-      case "admin":          return isAdmin ? <AdminPanel navigate={navigate} isMobile={isMobile} /> : <Dashboard navigate={navigate} isMobile={isMobile} />;
-      default:               return <Dashboard navigate={navigate} isMobile={isMobile} />;
+      case "dashboard":       return wrap("Dashboard",       <Dashboard navigate={navigate} isMobile={isMobile} />);
+      case "new-test":        return wrap("New Test",        <NewTest navigate={navigate} isMobile={isMobile} />);
+      case "upload":          return wrap("Upload",          <BulkUpload params={params} navigate={navigate} isMobile={isMobile} />);
+      case "test-results":    return wrap("Test Results",    <TestResults params={params} navigate={navigate} isMobile={isMobile} />);
+      case "students":        return wrap("Students",        <StudentList navigate={navigate} isMobile={isMobile} />);
+      case "student-detail":  return wrap("Student Detail",  <StudentDetail params={params} navigate={navigate} isMobile={isMobile} />);
+      case "result":          return wrap("Result",          <ResultDetail params={params} navigate={navigate} isMobile={isMobile} />);
+      case "student-crm":     return wrap("CRM",             <StudentCRM navigate={navigate} isMobile={isMobile} />);
+      case "school-settings": return wrap("Settings",        <SchoolSettings school={schoolInfo?.school} isMobile={isMobile} />);
+      case "student-portal":  return wrap("Student Portal",  <StudentPortal navigate={navigate} isMobile={isMobile} />);
+      case "student-result":  return wrap("Student Result",  <StudentResultView params={params} navigate={navigate} isMobile={isMobile} />);
+      case "admin":           return wrap("Admin",           isAdmin ? <AdminPanel navigate={navigate} isMobile={isMobile} /> : <Dashboard navigate={navigate} isMobile={isMobile} />);
+      default:                return wrap("Dashboard",       <Dashboard navigate={navigate} isMobile={isMobile} />);
     }
   };
 
