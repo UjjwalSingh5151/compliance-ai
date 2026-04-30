@@ -24,6 +24,20 @@ export const LENIENCY_PROMPTS = {
   5: "Be VERY LENIENT. Give maximum benefit of doubt. Award marks for any reasonable attempt that shows partial understanding.",
 };
 
+// Estimate PDF page count without a library — reads /Count N from the Pages dict.
+// Returns null if the buffer doesn't look like a PDF or count can't be found.
+export function getPDFPageCount(buffer) {
+  try {
+    // Search last 64KB for the cross-reference where /Count appears near /Pages
+    const tail = buffer.slice(Math.max(0, buffer.length - 65536)).toString("latin1");
+    const full = buffer.toString("latin1");
+    // /Count appears in the /Pages dictionary — take the largest value found
+    const matches = [...full.matchAll(/\/Count\s+(\d+)/g)];
+    if (!matches.length) return null;
+    return Math.max(...matches.map((m) => parseInt(m[1], 10)));
+  } catch { return null; }
+}
+
 export function fileToClaudeContent(file) {
   const isPDF = file.mimetype === "application/pdf";
   if (isPDF) {

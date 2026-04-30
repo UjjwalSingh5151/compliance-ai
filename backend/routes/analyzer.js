@@ -2,8 +2,11 @@ import { Router } from "express";
 import {
   supabaseAdmin, client, upload,
   LENIENCY_PROMPTS, fileToClaudeContent, uploadToStorage,
-  getRequestUser, getUserSchool,
+  getRequestUser, getUserSchool, getPDFPageCount,
 } from "../lib/shared.js";
+
+const MAX_PDF_PAGES = 80;   // Claude degrades above ~100 pages; 80 is safe
+const MAX_FILE_MB   = 15;   // hard cap per file
 
 const router = Router();
 
@@ -149,6 +152,20 @@ router.post("/tests/:testId/analyze", upload.array("sheets", 50), async (req, re
       const file = files[i];
       send({ type: "progress", index: i, total: files.length, filename: file.originalname, status: "analyzing" });
       try {
+        // ── Pre-flight size/page checks ──────────────────────────────────────
+        const fileMB = file.buffer.length / (1024 * 1024);
+        if (fileMB > MAX_FILE_MB) {
+          send({ type: "error", index: i, filename: file.originalname, error: `File is ${fileMB.toFixed(1)} MB — maximum allowed is ${MAX_FILE_MB} MB. Split into smaller files and upload again.` });
+          continue;
+        }
+        if (file.mimetype === "application/pdf") {
+          const pageCount = getPDFPageCount(file.buffer);
+          if (pageCount !== null && pageCount > MAX_PDF_PAGES) {
+            send({ type: "error", index: i, filename: file.originalname, error: `PDF has ${pageCount} pages — maximum is ${MAX_PDF_PAGES} pages. Each student's answer sheet must be uploaded as a separate file. If this is one student's sheet, export only their pages and try again.` });
+            continue;
+          }
+        }
+
         const contentBlock = fileToClaudeContent(file);
 
         // Keep field values concise to stay within token budget for large papers

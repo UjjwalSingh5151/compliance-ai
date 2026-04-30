@@ -98,7 +98,7 @@ export default function BulkUpload({ params, navigate, isMobile }) {
               {isMobile ? "Tap to select answer sheets" : "Drop answer sheets here"}
             </div>
             <div style={{ fontSize: 12, color: c.textMid }}>PDF, JPG, PNG · up to 50 files</div>
-            <div style={{ fontSize: 11, color: c.textDim, marginTop: 3 }}>Each file = one student's sheet</div>
+            <div style={{ fontSize: 11, color: c.textDim, marginTop: 3 }}>Each file = one student's sheet · PDF max 80 pages / 15 MB</div>
             <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple style={{ display: "none" }} onChange={(e) => addFiles(e.target.files)} />
           </div>
           {files.length > 0 && (
