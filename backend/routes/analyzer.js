@@ -10,7 +10,7 @@ const router = Router();
 // POST /tests — create a new test
 router.post("/tests", upload.single("questionPaper"), async (req, res) => {
   try {
-    const { name, subject, totalMarks = 100, leniency = 3, instructions = "" } = req.body;
+    const { name, subject, totalMarks = 100, leniency = 3, instructions = "", class: cls, section, teacherId } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Test name is required" });
 
     let questionPaperUrl = null;
@@ -40,7 +40,7 @@ router.post("/tests", upload.single("questionPaper"), async (req, res) => {
     const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
     const { data, error } = await supabaseAdmin
       .from("analyzer_tests")
-      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent, created_by: user?.id || null, school_id: schoolInfo?.school?.id || null })
+      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent, created_by: user?.id || null, school_id: schoolInfo?.school?.id || null, class: cls?.trim() || null, section: section?.trim() || null, teacher_id: teacherId || null })
       .select().single();
     if (error) throw error;
     res.json({ test: data });

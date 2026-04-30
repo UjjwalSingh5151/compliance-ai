@@ -42,6 +42,17 @@ export const api = {
   updateSchoolStatus: (id, status) =>
     json(`/api/admin/schools/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
 
+  // Teacher CRM
+  getTeachers: () => json("/api/school/teachers"),
+  addTeacher: (data) =>
+    json("/api/school/teachers", { method: "POST", body: JSON.stringify(data) }),
+  updateTeacher: (id, data) =>
+    json(`/api/school/teachers/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteTeacher: (id) =>
+    json(`/api/school/teachers/${id}`, { method: "DELETE" }),
+  importTeachers: (teachers) =>
+    json("/api/school/teachers/import", { method: "POST", body: JSON.stringify({ teachers }) }),
+
   // Student CRM
   getSchoolStudents: () => json("/api/school/students"),
   addStudent: (data) =>

@@ -51,19 +51,17 @@ function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMo
               </div>
             </div>
           )}
-          {q.expected_answer && (
+          {(q.expected_answer || q.reasoning) && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: c.textDim, marginBottom: 4, letterSpacing: 0.5 }}>EXPECTED ANSWER</div>
               <div style={{ fontSize: 13, color: c.textMid, lineHeight: 1.65, background: c.card, padding: "10px 12px", borderRadius: 8, border: `1px solid ${c.border}` }}>
                 {q.expected_answer}
-              </div>
-            </div>
-          )}
-          {q.reasoning && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, marginBottom: 4, letterSpacing: 0.5 }}>CLAUDE'S REASONING</div>
-              <div style={{ fontSize: 13, color: c.textMid, lineHeight: 1.65, background: c.accentDim, padding: "10px 12px", borderRadius: 8, border: `1px solid ${c.accent}30` }}>
-                {q.reasoning}
+                {q.expected_answer && q.reasoning && (
+                  <div style={{ borderTop: `1px solid ${c.border}`, marginTop: 8, paddingTop: 8, fontSize: 12, color: c.textDim, lineHeight: 1.65 }}>
+                    {q.reasoning}
+                  </div>
+                )}
+                {!q.expected_answer && q.reasoning && q.reasoning}
               </div>
             </div>
           )}
@@ -99,8 +97,8 @@ function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMo
   );
 }
 
-function SheetViewer({ url }) {
-  const isPDF = url.toLowerCase().includes(".pdf");
+function SheetViewer({ url, isMobile }) {
+  const isPDF = url.toLowerCase().includes(".pdf") || url.toLowerCase().includes("application/pdf");
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${c.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
@@ -115,7 +113,13 @@ function SheetViewer({ url }) {
           <iframe
             src={url}
             title="Answer sheet"
-            style={{ width: "100%", height: "100%", minHeight: 600, border: "none", display: "block" }}
+            style={{
+              width: "100%",
+              height: isMobile ? "calc(100vh - 120px)" : "100%",
+              minHeight: isMobile ? "unset" : 600,
+              border: "none",
+              display: "block",
+            }}
           />
         ) : (
           <img
@@ -298,37 +302,27 @@ export default function ResultDetail({ params, navigate, isMobile }) {
         </div>
       </div>
 
-      {/* Strengths + Improvement areas */}
-      {(analysis?.strengths?.length > 0 || analysis?.improvement_areas?.length > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: hasSheet || isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          {analysis?.strengths?.length > 0 && (
-            <div style={card}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.success, marginBottom: 8, letterSpacing: 0.5 }}>STRENGTHS</div>
-              {analysis.strengths.map((s, i) => (
-                <div key={i} style={{ fontSize: 13, color: c.textMid, padding: "3px 0", display: "flex", gap: 8 }}>
-                  <span style={{ color: c.success, flexShrink: 0 }}>✓</span>{s}
-                </div>
-              ))}
-            </div>
+      {/* Overall feedback + strengths + improvement areas — combined */}
+      {(analysis?.overall_feedback || analysis?.strengths?.length > 0 || analysis?.improvement_areas?.length > 0) && (
+        <div style={{ ...card, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: c.textMid, marginBottom: 8, letterSpacing: 0.5 }}>OVERALL FEEDBACK</div>
+          {analysis?.overall_feedback && (
+            <p style={{ fontSize: 13, color: c.textMid, lineHeight: 1.7, margin: "0 0 8px" }}>{analysis.overall_feedback}</p>
           )}
+          {analysis?.strengths?.map((s, i) => (
+            <div key={i} style={{ fontSize: 13, color: c.textMid, padding: "2px 0", display: "flex", gap: 8 }}>
+              <span style={{ color: c.success, flexShrink: 0 }}>✓</span>{s}
+            </div>
+          ))}
           {analysis?.improvement_areas?.length > 0 && (
-            <div style={card}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.warning, marginBottom: 8, letterSpacing: 0.5 }}>IMPROVEMENT AREAS</div>
+            <div style={{ marginTop: analysis?.strengths?.length > 0 ? 4 : 0 }}>
               {analysis.improvement_areas.map((area, i) => (
-                <div key={i} style={{ fontSize: 13, color: c.textMid, padding: "3px 0", display: "flex", gap: 8 }}>
+                <div key={i} style={{ fontSize: 13, color: c.textMid, padding: "2px 0", display: "flex", gap: 8 }}>
                   <span style={{ color: c.warning, flexShrink: 0 }}>→</span>{area}
                 </div>
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Overall feedback */}
-      {analysis?.overall_feedback && (
-        <div style={{ ...card, marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: c.textMid, marginBottom: 6, letterSpacing: 0.5 }}>OVERALL FEEDBACK</div>
-          <p style={{ fontSize: 13, color: c.textMid, lineHeight: 1.7, margin: 0 }}>{analysis.overall_feedback}</p>
         </div>
       )}
 
@@ -395,7 +389,7 @@ export default function ResultDetail({ params, navigate, isMobile }) {
 
         {activeTab === "sheet" && hasSheet && (
           <div style={{ height: "calc(100vh - 100px)" }}>
-            <SheetViewer url={original_sheet_url} />
+            <SheetViewer url={original_sheet_url} isMobile={true} />
           </div>
         )}
 

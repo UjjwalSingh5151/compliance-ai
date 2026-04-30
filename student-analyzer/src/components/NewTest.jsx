@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { api } from "../lib/api";
 import { c, card, btn, input } from "../lib/theme";
 
@@ -13,6 +13,9 @@ const LENIENCY_LEVELS = [
 export default function NewTest({ navigate, isMobile }) {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
+  const [cls, setCls] = useState("");
+  const [section, setSection] = useState("");
+  const [teacherId, setTeacherId] = useState("");
   const [totalMarks, setTotalMarks] = useState("100");
   const [leniency, setLeniency] = useState(3);
   const [instructions, setInstructions] = useState("");
@@ -20,8 +23,13 @@ export default function NewTest({ navigate, isMobile }) {
   const [extracting, setExtracting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [teachers, setTeachers] = useState([]);
   const fileRef = useRef();
   const p = isMobile ? 16 : 28;
+
+  useEffect(() => {
+    api.getTeachers().then(({ teachers }) => setTeachers(teachers || [])).catch(() => {});
+  }, []);
 
   const handlePaperFile = async (f) => {
     if (!f) return;
@@ -49,6 +57,9 @@ export default function NewTest({ navigate, isMobile }) {
       const fd = new FormData();
       fd.append("name", name.trim());
       fd.append("subject", subject.trim());
+      fd.append("class", cls.trim());
+      fd.append("section", section.trim());
+      if (teacherId) fd.append("teacherId", teacherId);
       fd.append("totalMarks", totalMarks);
       fd.append("leniency", leniency);
       fd.append("instructions", instructions.trim());
@@ -106,13 +117,43 @@ export default function NewTest({ navigate, isMobile }) {
 
         <div style={card}>
           <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>TEST NAME *</label>
-          <input style={input} placeholder="e.g. Class 10 Maths — Unit 3 Test" value={name} onChange={(e) => setName(e.target.value)} required disabled={extracting} />
+          <input style={input} placeholder="e.g. Unit 3 Test" value={name} onChange={(e) => setName(e.target.value)} required disabled={extracting} />
         </div>
 
-        <div style={{ ...card, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ ...card, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>CLASS</label>
+            <input style={input} placeholder="e.g. 10" value={cls} onChange={(e) => setCls(e.target.value)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>SECTION</label>
+            <input style={input} placeholder="e.g. A" value={section} onChange={(e) => setSection(e.target.value)} />
+          </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>SUBJECT</label>
             <input style={input} placeholder="e.g. Mathematics" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={extracting} />
+          </div>
+        </div>
+
+        <div style={{ ...card, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>TEACHER</label>
+            <select
+              value={teacherId}
+              onChange={(e) => setTeacherId(e.target.value)}
+              style={{ ...input, appearance: "none", WebkitAppearance: "none" }}>
+              <option value="">— None —</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.subjects?.length ? ` (${t.subjects.join(", ")})` : ""}
+                </option>
+              ))}
+            </select>
+            {teachers.length === 0 && (
+              <div style={{ fontSize: 11, color: c.textDim, marginTop: 5 }}>
+                Add teachers in Teacher CRM first to link them here.
+              </div>
+            )}
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 6 }}>TOTAL MARKS</label>

@@ -148,4 +148,80 @@ router.post("/students", requireSchool, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── Teacher CRM ──────────────────────────────────────────────────────────────
+
+router.get("/teachers", requireSchool, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("school_teachers").select("*").eq("school_id", req.school.id).order("name");
+    if (error) throw error;
+    res.json({ teachers: data || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/teachers/import", requireSchool, async (req, res) => {
+  try {
+    const { teachers } = req.body;
+    if (!Array.isArray(teachers) || !teachers.length) return res.status(400).json({ error: "No teachers provided" });
+    let imported = 0, updated = 0;
+    for (const t of teachers) {
+      const name = t.name?.toString().trim();
+      if (!name) continue;
+      const email = t.email?.toString().trim().toLowerCase() || null;
+      const classes = t.classes ? t.classes.toString().split(",").map((s) => s.trim()).filter(Boolean) : [];
+      const subjects = t.subjects ? t.subjects.toString().split(",").map((s) => s.trim()).filter(Boolean) : [];
+      const record = { school_id: req.school.id, name, email, classes, subjects };
+      if (email) {
+        const { data: existing } = await supabaseAdmin.from("school_teachers")
+          .select("id").eq("school_id", req.school.id).eq("email", email).maybeSingle();
+        if (existing) {
+          await supabaseAdmin.from("school_teachers").update(record).eq("id", existing.id);
+          updated++; continue;
+        }
+      }
+      await supabaseAdmin.from("school_teachers").insert(record);
+      imported++;
+    }
+    res.json({ imported, updated, total: teachers.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/teachers", requireSchool, async (req, res) => {
+  try {
+    const { name, email, classes = [], subjects = [] } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    const record = {
+      school_id: req.school.id,
+      name: name.trim(),
+      email: email?.trim().toLowerCase() || null,
+      classes: Array.isArray(classes) ? classes.filter(Boolean) : [],
+      subjects: Array.isArray(subjects) ? subjects.filter(Boolean) : [],
+    };
+    const { data, error } = await supabaseAdmin.from("school_teachers").insert(record).select().single();
+    if (error) throw error;
+    res.json({ teacher: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.patch("/teachers/:id", requireSchool, async (req, res) => {
+  try {
+    const allowed = ["name", "email", "classes", "subjects"];
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
+    const { data, error } = await supabaseAdmin
+      .from("school_teachers").update(updates)
+      .eq("id", req.params.id).eq("school_id", req.school.id).select().single();
+    if (error) throw error;
+    res.json({ teacher: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/teachers/:id", requireSchool, async (req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from("school_teachers").delete().eq("id", req.params.id).eq("school_id", req.school.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;
