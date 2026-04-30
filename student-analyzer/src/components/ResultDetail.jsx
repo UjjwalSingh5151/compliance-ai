@@ -43,6 +43,12 @@ function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMo
 
       {expanded && (
         <div style={{ padding: isMobile ? 12 : 16, background: c.bg, borderTop: `1px solid ${c.border}`, display: "flex", flexDirection: "column", gap: 12 }}>
+          {q.question && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: c.textDim, marginBottom: 4, letterSpacing: 0.5 }}>QUESTION</div>
+              <div style={{ fontSize: 13, color: c.text, lineHeight: 1.65, fontWeight: 500 }}>{q.question}</div>
+            </div>
+          )}
           {q.student_answer && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: c.textDim, marginBottom: 4, letterSpacing: 0.5 }}>STUDENT'S ANSWER</div>

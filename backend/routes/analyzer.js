@@ -93,6 +93,31 @@ router.get("/tests", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Robust JSON extraction — handles preamble text, markdown fences, and truncation
+function extractAnalysis(text, stopReason, totalMarks) {
+  const cleaned = text.trim()
+    .replace(/^```(?:json)?\s*/m, "")
+    .replace(/\s*```\s*$/m, "");
+
+  // 1. Direct parse
+  try { return JSON.parse(cleaned); } catch { /* continue */ }
+
+  // 2. Find outermost { ... }
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch { /* continue */ }
+
+    // 3. If truncated by max_tokens, try common closing suffixes to patch it
+    if (stopReason === "max_tokens") {
+      for (const suffix of ["]}}", "]}}}", "]}]}}", "]}\n}", "]}\n}}"]) {
+        try { return JSON.parse(match[0] + suffix); } catch { /* continue */ }
+      }
+    }
+  }
+
+  return null;
+}
+
 // POST /tests/:testId/analyze — bulk analyze sheets via SSE
 router.post("/tests/:testId/analyze", upload.array("sheets", 50), async (req, res) => {
   const { testId } = req.params;
@@ -125,73 +150,71 @@ router.post("/tests/:testId/analyze", upload.array("sheets", 50), async (req, re
       send({ type: "progress", index: i, total: files.length, filename: file.originalname, status: "analyzing" });
       try {
         const contentBlock = fileToClaudeContent(file);
-        const analyzePrompt = `You are an expert teacher carefully analyzing a student's handwritten answer sheet.
 
-${questionPaperContent ? `QUESTION PAPER:\n${questionPaperContent}\n` : "No question paper provided — evaluate answers based on content visible in the sheet."}
+        // Keep field values concise to stay within token budget for large papers
+        const analyzePrompt = `You are an expert teacher analyzing a student's handwritten answer sheet.
+
+${questionPaperContent ? `QUESTION PAPER:\n${questionPaperContent}\n` : "No question paper — evaluate based on what is visible in the sheet."}
 TOTAL MARKS: ${totalMarks}
-
 GRADING STRICTNESS: ${leniencyInstruction}
-${instructions ? `\nSPECIAL INSTRUCTIONS FROM TEACHER:\n${instructions}\n` : ""}
+${instructions ? `TEACHER INSTRUCTIONS:\n${instructions}\n` : ""}
 
-Your task:
-1. Extract the student's profile from the first page or header (roll number, name, class/grade, section, subject, academic year).
-2. For EACH question: read the student's answer carefully, then evaluate it against the expected correct answer.
-3. Provide your reasoning BEFORE awarding marks — explain what is correct, what is missing or wrong, and why you are giving those marks.
-4. Identify specific improvement areas and strengths based on the overall performance.
+Instructions:
+1. Extract student profile from the header (roll_no, name, class, section, subject, academic_year).
+2. For EACH question: copy the question text from the paper, read the student's answer, evaluate it.
+3. Keep all text fields under 40 words each — be concise but accurate.
+4. marks_obtained must equal the sum of all marks_awarded values.
 
-Respond ONLY with valid JSON (no markdown fences, no explanation outside JSON) in this exact format:
-{
-  "student": {
-    "roll_no": "roll number as written",
-    "name": "full name as written",
-    "class": "class or grade e.g. 10 or X",
-    "section": "section if visible",
-    "subject": "subject name",
-    "academic_year": "academic year e.g. 2024-25 or 2025, extract from sheet header if visible, else null"
-  },
-  "questions": [
-    {
-      "no": 1,
-      "student_answer": "1-2 sentence summary of what the student wrote.",
-      "expected_answer": "The correct answer in 1-2 sentences.",
-      "reasoning": "2-3 sentences: what is correct, what is missing or wrong, how marks were calculated.",
-      "marks_awarded": 8,
-      "marks_available": 10,
-      "feedback": "One concise, actionable sentence of feedback directly to the student.",
-      "is_correct": false
-    }
-  ],
-  "marks_obtained": 75,
-  "total_marks": ${totalMarks},
-  "improvement_areas": ["specific topic or skill needing improvement"],
-  "strengths": ["what the student did well"],
-  "overall_feedback": "1-2 sentence honest overall assessment of performance and what to focus on next."
+Return ONLY the JSON object below — no markdown fences, no text before or after:
+"student": {
+  "roll_no": "as written",
+  "name": "full name",
+  "class": "e.g. 10",
+  "section": "if visible",
+  "subject": "subject name",
+  "academic_year": "e.g. 2024-25 or null"
+},
+"questions": [
+  {
+    "no": 1,
+    "question": "exact question text from the paper (max 30 words)",
+    "student_answer": "what student wrote (max 30 words)",
+    "expected_answer": "correct answer (max 30 words)",
+    "reasoning": "why these marks (max 30 words)",
+    "marks_awarded": 8,
+    "marks_available": 10,
+    "feedback": "one sentence to student",
+    "is_correct": false
+  }
+],
+"marks_obtained": 75,
+"total_marks": ${totalMarks},
+"strengths": ["max 2 items"],
+"improvement_areas": ["max 2 items"],
+"overall_feedback": "2 sentences max."
 }`;
 
+        // Prefill forces JSON output from first token — saves ~100 tokens of preamble
+        const PREFILL = '{"student":';
         const response = await client.messages.create({
           model: "claude-sonnet-4-6",
           max_tokens: 8000,
-          messages: [{ role: "user", content: [contentBlock, { type: "text", text: analyzePrompt }] }],
+          messages: [
+            { role: "user", content: [contentBlock, { type: "text", text: analyzePrompt }] },
+            { role: "assistant", content: PREFILL },
+          ],
         });
 
-        let analysis;
-        try {
-          const text = response.content[0].text;
-          let parsed;
-          try { parsed = JSON.parse(text.trim()); }
-          catch {
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error("No JSON found in response");
-            parsed = JSON.parse(jsonMatch[0]);
-          }
-          analysis = parsed;
-          if (response.stop_reason === "max_tokens") {
-            console.warn(`[analyze] Token limit hit for ${file.originalname} — response may be incomplete`);
-          }
-        } catch (parseErr) {
-          const raw = response.content[0]?.text || "";
-          console.error(`[analyze] JSON parse failed for ${file.originalname}. stop_reason=${response.stop_reason} raw_snippet=${raw.slice(0, 300)}`);
-          analysis = { parse_error: true, raw, marks_obtained: 0, total_marks: totalMarks };
+        const rawText = PREFILL + (response.content[0]?.text || "");
+        if (response.stop_reason === "max_tokens") {
+          console.warn(`[analyze] max_tokens hit for ${file.originalname} — attempting partial recovery`);
+        }
+
+        let analysis = extractAnalysis(rawText, response.stop_reason, totalMarks);
+
+        if (!analysis) {
+          console.error(`[analyze] parse failed for ${file.originalname}. stop_reason=${response.stop_reason} snippet=${rawText.slice(0, 200)}`);
+          analysis = { parse_error: true, raw: rawText, marks_obtained: 0, total_marks: totalMarks };
         }
 
         const student = analysis.student || {};

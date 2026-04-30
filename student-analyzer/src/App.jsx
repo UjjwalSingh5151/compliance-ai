@@ -18,6 +18,7 @@ import AdminPanel from "./components/AdminPanel";
 import SchoolSettings from "./components/SchoolSettings";
 import StudentCRM from "./components/StudentCRM";
 import TeacherCRM from "./components/TeacherCRM";
+import PaperGenerator from "./components/PaperGenerator";
 import StudentPortal from "./components/StudentPortal";
 import StudentResultView from "./components/StudentResultView";
 import TestResults from "./components/TestResults";
@@ -127,6 +128,7 @@ export default function App() {
     ...(isOwner ? [{ id: "students",     label: "Students", icon: "👥" }] : []),
     ...(isOwner ? [{ id: "student-crm",  label: "CRM",      icon: "🗂️" }] : []),
     ...(isOwner ? [{ id: "teacher-crm",  label: "Teachers", icon: "👩‍🏫" }] : []),
+    ...(isOwner ? [{ id: "paper-generator", label: "Papers",   icon: "📄" }] : []),
     ...(isOwner ? [{ id: "school-settings", label: "Invite",  icon: "✉️" }] : []),
     ...(isAdmin  ? [{ id: "admin",       label: "Admin",    icon: "🔑" }] : []),
   ];
@@ -228,6 +230,7 @@ export default function App() {
       case "result":          return wrap("Result",          <ResultDetail params={params} navigate={navigate} isMobile={isMobile} />);
       case "student-crm":     return wrap("CRM",             <StudentCRM navigate={navigate} isMobile={isMobile} />);
       case "teacher-crm":     return wrap("Teachers",        <TeacherCRM isMobile={isMobile} />);
+      case "paper-generator": return wrap("Papers",          <PaperGenerator isMobile={isMobile} />);
       case "school-settings": return wrap("Settings",        <SchoolSettings school={schoolInfo?.school} isMobile={isMobile} />);
       case "student-portal":  return wrap("Student Portal",  <StudentPortal navigate={navigate} isMobile={isMobile} />);
       case "student-result":  return wrap("Student Result",  <StudentResultView params={params} navigate={navigate} isMobile={isMobile} />);

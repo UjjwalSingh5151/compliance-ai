@@ -114,6 +114,16 @@ export const api = {
     }),
   getShare: (token) => json(`/api/analyzer/share/${token}`),
 
+  // Paper generator
+  getPapers: () => json("/api/papers"),
+  getPaper: (id) => json(`/api/papers/${id}`),
+  generatePaper: (formData) =>
+    json("/api/papers/generate", { method: "POST", body: formData }),
+  transcribePaper: (formData) =>
+    json("/api/papers/transcribe", { method: "POST", body: formData }),
+  deletePaper: (id) =>
+    json(`/api/papers/${id}`, { method: "DELETE" }),
+
   // Student portal
   getStudentMe: () => json("/api/student/me"),
   getStudentResults: () => json("/api/student/results"),
