@@ -98,7 +98,13 @@ function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMo
 }
 
 function SheetViewer({ url, isMobile }) {
-  const isPDF = url.toLowerCase().includes(".pdf") || url.toLowerCase().includes("application/pdf");
+  const isPDF = /\.pdf($|\?)/i.test(url) || url.includes("application%2Fpdf");
+  // Android Chrome blocks PDF iframes and shows a native "Open" prompt instead.
+  // Google Docs Viewer renders any public PDF inline on all mobile browsers.
+  const iframeSrc = isPDF && isMobile
+    ? `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`
+    : url;
+
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${c.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
@@ -108,13 +114,14 @@ function SheetViewer({ url, isMobile }) {
           Open full ↗
         </a>
       </div>
-      <div style={{ flex: 1, overflow: "auto", padding: isPDF ? 0 : 12, background: "#0a0e14" }}>
+      <div style={{ flex: 1, overflow: "hidden", padding: isPDF ? 0 : 12, background: "#0a0e14", display: "flex", flexDirection: "column" }}>
         {isPDF ? (
           <iframe
-            src={url}
+            src={iframeSrc}
             title="Answer sheet"
             style={{
               width: "100%",
+              flex: 1,
               height: isMobile ? "calc(100vh - 120px)" : "100%",
               minHeight: isMobile ? "unset" : 600,
               border: "none",
@@ -122,11 +129,9 @@ function SheetViewer({ url, isMobile }) {
             }}
           />
         ) : (
-          <img
-            src={url}
-            alt="Answer sheet"
-            style={{ width: "100%", borderRadius: 6, display: "block" }}
-          />
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            <img src={url} alt="Answer sheet" style={{ width: "100%", borderRadius: 6, display: "block" }} />
+          </div>
         )}
       </div>
     </div>

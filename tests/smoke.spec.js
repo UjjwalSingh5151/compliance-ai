@@ -37,3 +37,29 @@ test("login with wrong credentials shows error", async ({ page }) => {
   // Should show some error message (Supabase will return invalid login)
   await expect(page.locator("div").filter({ hasText: /invalid|incorrect|wrong|error/i }).first()).toBeVisible({ timeout: 10_000 });
 });
+
+// ─── Mobile layout ────────────────────────────────────────────────────────────
+// These run on both desktop and mobile projects — viewport differences are
+// caught by the "mobile" Playwright project (Pixel 7 emulation).
+
+test("login screen is usable on mobile viewport", async ({ page }) => {
+  await page.goto("/");
+  // Form fields must be visible without horizontal scrolling
+  const email = page.getByPlaceholder("Email");
+  const password = page.getByPlaceholder("Password");
+  await expect(email).toBeVisible();
+  await expect(password).toBeVisible();
+  // Fields should not overflow the viewport
+  const box = await email.boundingBox();
+  const vw = page.viewportSize().width;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(vw + 1); // +1 for sub-pixel rounding
+});
+
+test("signup tab works on mobile", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Sign up").click();
+  await expect(page.getByPlaceholder("Your name")).toBeVisible();
+  // Submit button must be reachable
+  await expect(page.getByRole("button", { name: "Create account" })).toBeVisible();
+});
