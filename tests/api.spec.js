@@ -47,3 +47,30 @@ test("GET /api/student/me (no token) → 401", async ({ request }) => {
   const res = await request.get(`${API}/api/student/me`);
   expect(res.status()).toBe(401);
 });
+
+// ─── Analyze endpoint — structure checks (no real Claude call) ─────────────
+// These catch malformed requests before they reach the model.
+
+test("POST /api/analyzer/tests/:id/analyze (no files) → 400", async ({ request }) => {
+  const res = await request.post(`${API}/api/analyzer/tests/fake-id/analyze`, {
+    multipart: {},
+  });
+  // Must return 400, not crash with 500 or hang
+  expect(res.status()).toBe(400);
+  const body = await res.json();
+  expect(body.error).toBeTruthy();
+});
+
+test("POST /api/papers/generate (no auth) → 401 or 403", async ({ request }) => {
+  const res = await request.post(`${API}/api/papers/generate`, {
+    data: { subject: "Maths" },
+  });
+  expect([401, 403]).toContain(res.status());
+});
+
+test("POST /api/papers/transcribe (no auth) → 401 or 403", async ({ request }) => {
+  const res = await request.post(`${API}/api/papers/transcribe`, {
+    multipart: {},
+  });
+  expect([401, 403]).toContain(res.status());
+});

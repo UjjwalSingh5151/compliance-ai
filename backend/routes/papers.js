@@ -9,8 +9,6 @@ const router = Router();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PREFILL = '{"title":';
-
 function extractPaperJSON(text, stopReason) {
   const cleaned = text.trim()
     .replace(/^```(?:json)?\s*/m, "")
@@ -117,13 +115,10 @@ ${PAPER_SCHEMA}`;
       const response = await client.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 8000,
-        messages: [
-          { role: "user", content: userContent },
-          { role: "assistant", content: PREFILL },
-        ],
+        messages: [{ role: "user", content: userContent }],
       });
 
-      const rawText = PREFILL + (response.content[0]?.text || "");
+      const rawText = response.content[0]?.text || "";
       const content = extractPaperJSON(rawText, response.stop_reason);
       if (!content) return res.status(422).json({ error: "Could not parse Claude's response. Try again or simplify the request." });
 
@@ -202,11 +197,10 @@ ${PAPER_SCHEMA}`;
               { type: "text", text: prompt },
             ],
           },
-          { role: "assistant", content: PREFILL },
         ],
       });
 
-      const rawText = PREFILL + (response.content[0]?.text || "");
+      const rawText = response.content[0]?.text || "";
       const content = extractPaperJSON(rawText, response.stop_reason);
       if (!content) return res.status(422).json({ error: "Could not parse Claude's response. The handwriting may be too unclear — try a clearer photo." });
 

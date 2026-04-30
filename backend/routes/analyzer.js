@@ -165,47 +165,46 @@ Instructions:
 3. Keep all text fields under 40 words each — be concise but accurate.
 4. marks_obtained must equal the sum of all marks_awarded values.
 
-Return ONLY the JSON object below — no markdown fences, no text before or after:
-"student": {
-  "roll_no": "as written",
-  "name": "full name",
-  "class": "e.g. 10",
-  "section": "if visible",
-  "subject": "subject name",
-  "academic_year": "e.g. 2024-25 or null"
-},
-"questions": [
-  {
-    "no": 1,
-    "question": "exact question text from the paper (max 30 words)",
-    "student_answer": "what student wrote (max 30 words)",
-    "expected_answer": "correct answer (max 30 words)",
-    "reasoning": "why these marks (max 30 words)",
-    "marks_awarded": 8,
-    "marks_available": 10,
-    "feedback": "one sentence to student",
-    "is_correct": false
-  }
-],
-"marks_obtained": 75,
-"total_marks": ${totalMarks},
-"strengths": ["max 2 items"],
-"improvement_areas": ["max 2 items"],
-"overall_feedback": "2 sentences max."
+IMPORTANT: Your entire response must be a single valid JSON object. No markdown, no explanation, no text outside the JSON.
+
+{
+  "student": {
+    "roll_no": "as written",
+    "name": "full name",
+    "class": "e.g. 10",
+    "section": "if visible",
+    "subject": "subject name",
+    "academic_year": "e.g. 2024-25 or null"
+  },
+  "questions": [
+    {
+      "no": 1,
+      "question": "exact question text from the paper (max 30 words)",
+      "student_answer": "what student wrote (max 30 words)",
+      "expected_answer": "correct answer (max 30 words)",
+      "reasoning": "why these marks (max 30 words)",
+      "marks_awarded": 8,
+      "marks_available": 10,
+      "feedback": "one sentence to student",
+      "is_correct": false
+    }
+  ],
+  "marks_obtained": 75,
+  "total_marks": ${totalMarks},
+  "strengths": ["max 2 items"],
+  "improvement_areas": ["max 2 items"],
+  "overall_feedback": "2 sentences max."
 }`;
 
-        // Prefill forces JSON output from first token — saves ~100 tokens of preamble
-        const PREFILL = '{"student":';
         const response = await client.messages.create({
           model: "claude-sonnet-4-6",
           max_tokens: 8000,
           messages: [
             { role: "user", content: [contentBlock, { type: "text", text: analyzePrompt }] },
-            { role: "assistant", content: PREFILL },
           ],
         });
 
-        const rawText = PREFILL + (response.content[0]?.text || "");
+        const rawText = response.content[0]?.text || "";
         if (response.stop_reason === "max_tokens") {
           console.warn(`[analyze] max_tokens hit for ${file.originalname} — attempting partial recovery`);
         }
