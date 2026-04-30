@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../lib/api";
+import { supabase } from "../lib/supabase";
 import { c, card, btn, input } from "../lib/theme";
 
 export default function SchoolSetup({ onDone, isMobile }) {
@@ -29,7 +30,7 @@ export default function SchoolSetup({ onDone, isMobile }) {
           <div style={{ fontSize: 32, marginBottom: 8 }}>🏫</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: c.text, marginBottom: 6 }}>Register Your School</div>
           <div style={{ fontSize: 13, color: c.textMid, lineHeight: 1.6 }}>
-            Once registered, your school will be reviewed and approved by the platform admin.
+            One-time setup. Once registered, your school will be reviewed and approved.
             You'll get access within 24 hours.
           </div>
         </div>
@@ -60,6 +61,15 @@ export default function SchoolSetup({ onDone, isMobile }) {
             {loading ? "Registering…" : "Register School →"}
           </button>
         </form>
+
+        <div style={{ textAlign: "center", marginTop: 28, paddingTop: 20, borderTop: `1px solid ${c.border}` }}>
+          <div style={{ fontSize: 12, color: c.textDim, marginBottom: 8 }}>Already have an account?</div>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            style={{ fontSize: 13, color: c.textMid, background: "transparent", border: `1px solid ${c.border}`, borderRadius: 6, padding: "7px 16px", cursor: "pointer", fontFamily: "inherit" }}>
+            Sign out and use a different account
+          </button>
+        </div>
       </div>
     </div>
   );
