@@ -20,7 +20,6 @@ import StudentCRM from "./components/StudentCRM";
 import TeacherCRM from "./components/TeacherCRM";
 import PaperGenerator from "./components/PaperGenerator";
 import Analytics from "./components/Analytics";
-import Analytics from "./components/Analytics";
 import StudentPortal from "./components/StudentPortal";
 import StudentResultView from "./components/StudentResultView";
 import TestResults from "./components/TestResults";
