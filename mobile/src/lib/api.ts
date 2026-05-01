@@ -71,46 +71,59 @@ export const api = {
     request<{ test: Test }>("/api/analyzer/tests", { method: "POST", body: formData }),
 
   // Analyze — single PDF upload (used by camera flow after on-device PDF creation)
-  analyzeSheet: async (
+  analyzeSheet: (
     testId: string,
     pdfUri: string,
     fileName: string,
     onEvent: (e: any) => void
-  ) => {
-    const token = await getAccessToken();
-    const formData = new FormData();
-    formData.append("sheets", {
-      uri: pdfUri,
-      name: fileName,
-      type: "application/pdf",
-    } as any);
+  ): Promise<void> => {
+    // React Native's fetch does NOT support res.body.getReader() (no ReadableStream).
+    // Use XMLHttpRequest instead — onprogress fires as SSE chunks arrive.
+    return new Promise(async (resolve, reject) => {
+      const token = await getAccessToken();
 
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+      const formData = new FormData();
+      formData.append("sheets", {
+        uri: pdfUri,
+        name: fileName,
+        type: "application/pdf",
+      } as any);
 
-    const res = await fetch(`${API_URL}/api/analyzer/tests/${testId}/analyze`, {
-      method: "POST",
-      body: formData,
-      headers,
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_URL}/api/analyzer/tests/${testId}/analyze`);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+      let processed = 0;
+
+      const processChunk = (text: string) => {
+        const lines = text.split("\n");
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") { resolve(); return; }
+          try { onEvent(JSON.parse(raw)); } catch { /* skip malformed line */ }
+        }
+      };
+
+      xhr.onprogress = () => {
+        const newText = xhr.responseText.slice(processed);
+        processed = xhr.responseText.length;
+        processChunk(newText);
+      };
+
+      xhr.onload = () => {
+        // Catch anything not yet processed
+        const remaining = xhr.responseText.slice(processed);
+        if (remaining) processChunk(remaining);
+        resolve();
+      };
+
+      xhr.onerror = () => reject(new Error(`Network error (status ${xhr.status})`));
+      xhr.ontimeout = () => reject(new Error("Request timed out"));
+      xhr.timeout = 5 * 60 * 1000; // 5 min — Claude can be slow
+
+      xhr.send(formData);
     });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-
-    const reader = res.body!.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop()!;
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const raw = line.slice(6);
-        if (raw === "[DONE]") return;
-        try { onEvent(JSON.parse(raw)); } catch { /* skip */ }
-      }
-    }
   },
 
   // Papers

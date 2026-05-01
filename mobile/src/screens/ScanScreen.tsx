@@ -293,7 +293,8 @@ export default function ScanScreen({ route, navigation }: any) {
         </View>
       )}
 
-      <CameraView ref={cameraRef} style={styles.camera} facing="back">
+      <View style={styles.cameraWrapper}>
+        <CameraView ref={cameraRef} style={styles.camera} facing="back" />
         {photos.length > 0 && (
           <View style={styles.strip}>
             {photos.slice(-5).map((p, i) => (
@@ -306,7 +307,7 @@ export default function ScanScreen({ route, navigation }: any) {
             )}
           </View>
         )}
-      </CameraView>
+      </View>
 
       <View style={styles.controls}>
         <TouchableOpacity style={styles.galleryBtn} onPress={pickFromGallery}>
@@ -337,8 +338,9 @@ const styles = StyleSheet.create({
   reviewLink:     { fontSize: 13, color: c.accent, fontWeight: "600" },
   infoBanner:     { backgroundColor: `${c.success}18`, borderBottomWidth: 1, borderBottomColor: `${c.success}30`, padding: 12 },
   infoBannerText: { fontSize: 12, color: c.success, textAlign: "center", lineHeight: 18 },
+  cameraWrapper:  { flex: 1, position: "relative" },
   camera:         { flex: 1 },
-  strip:          { position: "absolute", bottom: 8, left: 8, flexDirection: "row", gap: 4 },
+  strip:          { position: "absolute", bottom: 8, left: 8, flexDirection: "row", gap: 4, zIndex: 10 },
   stripThumb:     { width: 44, height: 56, borderRadius: 4, borderWidth: 1, borderColor: "#fff" },
   stripMore:      { width: 44, height: 56, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
   stripMoreText:  { color: "#fff", fontSize: 12, fontWeight: "700" },
