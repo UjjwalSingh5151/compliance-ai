@@ -19,16 +19,19 @@ const app = express();
 // Always allows localhost (any port) and requests with no origin (mobile apps,
 // Postman, curl). In production set:
 //   CORS_ORIGINS=https://your-app.vercel.app,https://your-custom-domain.com
+// Strip trailing slashes so https://example.com/ and https://example.com both work
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "")
-  .split(",").map((s) => s.trim()).filter(Boolean);
+  .split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
-    // No origin = mobile app / Postman / server-to-server — always allow
+    // No origin = mobile app / Postman / curl — always allow
     if (!origin) return cb(null, true);
-    // Localhost dev — always allow
+    // Localhost (any port) — always allow for dev
     if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
-    // Explicitly allowed origins
+    // *.onrender.com — allow Render preview URLs and same-server requests
+    if (/^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(origin)) return cb(null, true);
+    // Explicitly allowed origins (from CORS_ORIGINS env var)
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
