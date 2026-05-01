@@ -13,8 +13,9 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, Linking, TextInput,
+  TouchableOpacity, Alert, TextInput,
 } from "react-native";
+import { WebView } from "react-native-webview";
 import { api } from "../lib/api";
 import { c } from "../lib/theme";
 
@@ -154,10 +155,12 @@ export default function ResultDetailScreen({ route, navigation }: any) {
     finally { setSaving(false); }
   };
 
-  const openSheet = () => {
-    if (result?.original_sheet_url) {
-      Linking.openURL(result.original_sheet_url);
-    }
+  // Build inline viewer URL — PDFs use Google Docs Viewer for inline rendering
+  const sheetViewerUrl = (url: string) => {
+    const isPDF = /\.pdf($|\?)/i.test(url) || url.includes("application%2Fpdf");
+    return isPDF
+      ? `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`
+      : url;
   };
 
   if (loading) {
@@ -225,21 +228,19 @@ export default function ResultDetailScreen({ route, navigation }: any) {
         </View>
       )}
 
-      {/* Answer Sheet tab */}
+      {/* Answer Sheet tab — inline WebView */}
       {tab === "sheet" && hasSheet && (
-        <View style={[styles.center, { flex: 1, gap: 16 }]}>
-          <Text style={{ fontSize: 48 }}>📄</Text>
-          <Text style={{ fontSize: 15, fontWeight: "700", color: c.text }}>Answer Sheet</Text>
-          <Text style={{ fontSize: 13, color: c.textMid, textAlign: "center", paddingHorizontal: 32 }}>
-            Opens in your device's browser or PDF viewer
-          </Text>
-          <TouchableOpacity style={styles.openSheetBtn} onPress={openSheet}>
-            <Text style={styles.openSheetBtnText}>Open Answer Sheet ↗</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setTab("analysis")}>
-            <Text style={{ fontSize: 13, color: c.accent, marginTop: 8 }}>View Analysis →</Text>
-          </TouchableOpacity>
-        </View>
+        <WebView
+          source={{ uri: sheetViewerUrl(result.original_sheet_url) }}
+          style={{ flex: 1 }}
+          startInLoadingState
+          renderLoading={() => (
+            <View style={[styles.center, { flex: 1 }]}>
+              <ActivityIndicator color={c.accent} />
+              <Text style={{ color: c.textDim, marginTop: 10, fontSize: 12 }}>Loading sheet…</Text>
+            </View>
+          )}
+        />
       )}
 
       {/* Analysis tab */}
@@ -264,10 +265,10 @@ export default function ResultDetailScreen({ route, navigation }: any) {
             </View>
           </View>
 
-          {/* Open sheet button (when on analysis tab) */}
+          {/* Switch to sheet tab */}
           {hasSheet && (
-            <TouchableOpacity style={styles.sheetLink} onPress={openSheet}>
-              <Text style={styles.sheetLinkText}>📄 Open Answer Sheet ↗</Text>
+            <TouchableOpacity style={styles.sheetLink} onPress={() => setTab("sheet")}>
+              <Text style={styles.sheetLinkText}>📄 View Answer Sheet</Text>
             </TouchableOpacity>
           )}
 
