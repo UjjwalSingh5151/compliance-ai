@@ -4,9 +4,11 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ActivityIndicator, View } from "react-native";
 import { supabase } from "../lib/supabase";
 import { c } from "../lib/theme";
-import LoginScreen from "../screens/LoginScreen";
-import TestsScreen from "../screens/TestsScreen";
-import ScanScreen  from "../screens/ScanScreen";
+import LoginScreen      from "../screens/LoginScreen";
+import HomeScreen       from "../screens/HomeScreen";
+import NewPaperScreen   from "../screens/NewPaperScreen";
+import SelectTestScreen from "../screens/SelectTestScreen";
+import ScanScreen       from "../screens/ScanScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -14,17 +16,13 @@ export default function AppNavigator() {
   const [session, setSession] = useState<any>(undefined); // undefined = loading
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-
-    // Listen for auth changes (login / logout / token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Still loading
   if (session === undefined) {
     return (
       <View style={{ flex: 1, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" }}>
@@ -43,13 +41,15 @@ export default function AppNavigator() {
         }}
       >
         {session ? (
-          // Authenticated stack
+          // ── Authenticated stack ──────────────────────────────────────────
           <>
-            <Stack.Screen name="Tests" component={TestsScreen} />
-            <Stack.Screen name="Scan"  component={ScanScreen}  />
+            <Stack.Screen name="Home"       component={HomeScreen} />
+            <Stack.Screen name="NewPaper"   component={NewPaperScreen} />
+            <Stack.Screen name="SelectTest" component={SelectTestScreen} />
+            <Stack.Screen name="Scan"       component={ScanScreen} />
           </>
         ) : (
-          // Unauthenticated stack
+          // ── Unauthenticated ──────────────────────────────────────────────
           <Stack.Screen name="Login" component={LoginScreen} />
         )}
       </Stack.Navigator>

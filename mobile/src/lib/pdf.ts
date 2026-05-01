@@ -31,8 +31,10 @@ async function compressPhoto(uri: string): Promise<string> {
  * Convert a local file URI to base64 string.
  */
 async function toBase64(uri: string): Promise<string> {
+  // FileSystem.EncodingType.Base64 can be undefined in some EAS builds —
+  // use the literal string "base64" instead.
   return FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
+    encoding: "base64" as any,
   });
 }
 
