@@ -1,27 +1,164 @@
 /**
- * ResultDetailScreen — full evaluation for one scanned answer sheet.
- * Shows: student info, score, feedback, strengths, improvements, per-question breakdown.
+ * ResultDetailScreen — mirrors the web app's ResultDetail.
+ *
+ * Two tabs:
+ *   - "Answer Sheet" — opens original_sheet_url in device browser
+ *   - "Analysis"    — overall feedback + expandable question-by-question cards
+ *
+ * Question card fields (matching backend):
+ *   q.no, q.marks_awarded, q.marks_available,
+ *   q.question, q.student_answer, q.expected_answer, q.reasoning, q.feedback
  */
 
 import React, { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert,
+  TouchableOpacity, Alert, Linking, TextInput,
 } from "react-native";
 import { api } from "../lib/api";
 import { c } from "../lib/theme";
 
+// ─── Score ring ───────────────────────────────────────────────────────────────
+function ScoreRing({ pct }: { pct: number }) {
+  const color = pct >= 75 ? c.success : pct >= 50 ? c.warning : c.danger;
+  return (
+    <View style={[styles.ring, { borderColor: color, backgroundColor: `${color}15` }]}>
+      <Text style={[styles.ringPct, { color }]}>{pct}%</Text>
+    </View>
+  );
+}
+
+// ─── Expandable question card ─────────────────────────────────────────────────
+function QuestionCard({ q, comment, onCommentChange }: {
+  q: any;
+  comment: string;
+  onCommentChange: (no: string, val: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const pct = q.marks_available > 0
+    ? Math.round((q.marks_awarded / q.marks_available) * 100) : 0;
+  const color = pct === 100 ? c.success : pct >= 60 ? c.warning : c.danger;
+
+  return (
+    <View style={styles.qCard}>
+      {/* Collapsed header — always visible */}
+      <TouchableOpacity style={styles.qHeader} onPress={() => setExpanded((v) => !v)} activeOpacity={0.75}>
+        <View style={[styles.qNum, { backgroundColor: `${color}15`, borderColor: `${color}40` }]}>
+          <Text style={[styles.qNumText, { color }]}>Q{q.no}</Text>
+        </View>
+        <View style={styles.qHeaderMid}>
+          {q.feedback ? (
+            <Text style={styles.qFeedbackPreview} numberOfLines={1}>{q.feedback}</Text>
+          ) : (
+            <Text style={styles.qNoFeedback}>No feedback</Text>
+          )}
+        </View>
+        <View style={styles.qHeaderRight}>
+          <Text style={[styles.qMarks, { color }]}>{q.marks_awarded}/{q.marks_available}</Text>
+          <Text style={styles.chevron}>{expanded ? "▲" : "▼"}</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <View style={styles.qBody}>
+          {q.question ? (
+            <View style={styles.qSection}>
+              <Text style={styles.qSectionLabel}>QUESTION</Text>
+              <Text style={styles.qSectionText}>{q.question}</Text>
+            </View>
+          ) : null}
+
+          {q.student_answer ? (
+            <View style={styles.qSection}>
+              <Text style={styles.qSectionLabel}>STUDENT'S ANSWER</Text>
+              <View style={styles.qBox}>
+                <Text style={styles.qBoxText}>{q.student_answer}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {(q.expected_answer || q.reasoning) ? (
+            <View style={styles.qSection}>
+              <Text style={styles.qSectionLabel}>EXPECTED ANSWER</Text>
+              <View style={styles.qBox}>
+                {q.expected_answer ? (
+                  <Text style={styles.qBoxText}>{q.expected_answer}</Text>
+                ) : null}
+                {q.reasoning ? (
+                  <Text style={[styles.qBoxText, { marginTop: 6, color: c.textDim, fontSize: 12 }]}>
+                    {q.reasoning}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.qSection}>
+            <Text style={styles.qSectionLabel}>MARKS AWARDED</Text>
+            <Text style={[styles.qMarks, { color, fontSize: 16 }]}>
+              {q.marks_awarded} / {q.marks_available}
+            </Text>
+          </View>
+
+          {q.feedback ? (
+            <View style={styles.qSection}>
+              <Text style={[styles.qSectionLabel, { color: c.success }]}>FEEDBACK TO STUDENT</Text>
+              <Text style={[styles.qSectionText, { color: c.textMid }]}>{q.feedback}</Text>
+            </View>
+          ) : null}
+
+          {/* Teacher comment */}
+          <View style={styles.qSection}>
+            <Text style={[styles.qSectionLabel, { color: c.purple }]}>TEACHER'S NOTE</Text>
+            <TextInput
+              style={styles.commentInput}
+              value={comment || ""}
+              onChangeText={(v) => onCommentChange(String(q.no), v)}
+              placeholder="Add override or personal note…"
+              placeholderTextColor={c.textDim}
+              multiline
+              numberOfLines={2}
+            />
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ResultDetailScreen({ route, navigation }: any) {
   const { resultId, testName } = route.params;
-  const [result, setResult]   = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [result, setResult]     = useState<any>(null);
+  const [loading, setLoading]   = useState(true);
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [saving, setSaving]     = useState(false);
+  const [tab, setTab]           = useState<"analysis" | "sheet">("analysis");
 
   useEffect(() => {
     api.getResult(resultId)
-      .then((r) => setResult(r.result))
+      .then((r) => {
+        setResult(r.result);
+        setComments(r.result.teacher_comments || {});
+        if (r.result.original_sheet_url) setTab("sheet");
+      })
       .catch((e) => Alert.alert("Error", e.message))
       .finally(() => setLoading(false));
   }, [resultId]);
+
+  const saveComments = async () => {
+    setSaving(true);
+    try { await api.saveComments(resultId, comments); }
+    catch (e: any) { Alert.alert("Error saving", e.message); }
+    finally { setSaving(false); }
+  };
+
+  const openSheet = () => {
+    if (result?.original_sheet_url) {
+      Linking.openURL(result.original_sheet_url);
+    }
+  };
 
   if (loading) {
     return (
@@ -34,7 +171,7 @@ export default function ResultDetailScreen({ route, navigation }: any) {
   if (!result) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={{ color: c.danger, fontSize: 14 }}>Could not load result.</Text>
+        <Text style={{ color: c.danger }}>Could not load result.</Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
           <Text style={{ color: c.accent }}>← Go back</Text>
         </TouchableOpacity>
@@ -42,21 +179,18 @@ export default function ResultDetailScreen({ route, navigation }: any) {
     );
   }
 
-  const a           = result.analysis || {};
-  const student     = result.analyzer_students || a.student || {};
-  const test        = result.analyzer_tests || {};
-  const obtained    = result.marks_obtained ?? a.marks_obtained ?? 0;
-  const total       = result.total_marks   ?? a.total_marks   ?? test.total_marks ?? 0;
-  const pct         = total ? Math.round((obtained / total) * 100) : 0;
-  const scoreColor  = pct >= 75 ? c.success : pct >= 50 ? c.warning : c.danger;
-  const date        = result.analyzed_at
-    ? new Date(result.analyzed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
-    : "";
-
-  const answers: any[] = a.answers || [];
+  const a          = result.analysis || {};
+  const student    = result.analyzer_students || {};
+  const test       = result.analyzer_tests || {};
+  const obtained   = result.marks_obtained ?? 0;
+  const total      = result.total_marks ?? test.total_marks ?? 0;
+  const pct        = total ? Math.round((obtained / total) * 100) : 0;
+  const scoreColor = pct >= 75 ? c.success : pct >= 50 ? c.warning : c.danger;
+  const questions: any[] = a.questions || [];
+  const hasSheet   = !!result.original_sheet_url;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -65,131 +199,190 @@ export default function ResultDetailScreen({ route, navigation }: any) {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {test.name || testName || "Result"}
         </Text>
-        <View style={{ width: 52 }} />
+        {questions.length > 0 && (
+          <TouchableOpacity
+            style={[styles.saveBtn, { opacity: saving ? 0.5 : 1 }]}
+            onPress={saveComments}
+            disabled={saving}
+          >
+            <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
+          </TouchableOpacity>
+        )}
+        {questions.length === 0 && <View style={{ width: 52 }} />}
       </View>
 
-      {/* Score card */}
-      <View style={styles.scoreCard}>
-        <Text style={[styles.scoreNum, { color: scoreColor }]}>{obtained}/{total}</Text>
-        <Text style={[styles.scorePct, { color: scoreColor }]}>{pct}%</Text>
-
-        {student.name && <Text style={styles.studentName}>{student.name}</Text>}
-        <View style={styles.metaRow}>
-          {student.roll_no && <Text style={styles.metaChip}>Roll: {student.roll_no}</Text>}
-          {(student.class || a.student?.class) && (
-            <Text style={styles.metaChip}>Class {student.class || a.student?.class}</Text>
-          )}
-          {test.subject && <Text style={styles.metaChip}>{test.subject}</Text>}
+      {/* Tab bar — only if there's a sheet */}
+      {hasSheet && (
+        <View style={styles.tabBar}>
+          {(["sheet", "analysis"] as const).map((t) => (
+            <TouchableOpacity key={t} style={styles.tabBtn} onPress={() => setTab(t)}>
+              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
+                {t === "sheet" ? "Answer Sheet" : "Analysis"}
+              </Text>
+              {tab === t && <View style={styles.tabUnderline} />}
+            </TouchableOpacity>
+          ))}
         </View>
-        {date && <Text style={styles.dateText}>Scanned {date}</Text>}
-      </View>
+      )}
 
-      {/* Parse warning */}
-      {a.parse_error && (
-        <View style={[styles.section, { borderColor: c.warning }]}>
-          <Text style={[styles.sectionLabel, { color: c.warning }]}>⚠ SCAN WARNING</Text>
-          <Text style={styles.bodyText}>
-            Could not fully read this sheet. Retake with better lighting and ensure pages are flat.
+      {/* Answer Sheet tab */}
+      {tab === "sheet" && hasSheet && (
+        <View style={[styles.center, { flex: 1, gap: 16 }]}>
+          <Text style={{ fontSize: 48 }}>📄</Text>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: c.text }}>Answer Sheet</Text>
+          <Text style={{ fontSize: 13, color: c.textMid, textAlign: "center", paddingHorizontal: 32 }}>
+            Opens in your device's browser or PDF viewer
           </Text>
+          <TouchableOpacity style={styles.openSheetBtn} onPress={openSheet}>
+            <Text style={styles.openSheetBtnText}>Open Answer Sheet ↗</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setTab("analysis")}>
+            <Text style={{ fontSize: 13, color: c.accent, marginTop: 8 }}>View Analysis →</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Overall feedback */}
-      {a.overall_feedback && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>OVERALL FEEDBACK</Text>
-          <Text style={styles.bodyText}>{a.overall_feedback}</Text>
-        </View>
-      )}
-
-      {/* Strengths */}
-      {a.strengths?.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: c.success }]}>✓ STRENGTHS</Text>
-          {a.strengths.map((s: string, i: number) => (
-            <View key={i} style={styles.bulletRow}>
-              <Text style={[styles.bullet, { color: c.success }]}>•</Text>
-              <Text style={[styles.bulletText, { color: c.success }]}>{s}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Improvements */}
-      {a.improvement_areas?.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: c.warning }]}>→ NEEDS IMPROVEMENT</Text>
-          {a.improvement_areas.map((s: string, i: number) => (
-            <View key={i} style={styles.bulletRow}>
-              <Text style={[styles.bullet, { color: c.warning }]}>•</Text>
-              <Text style={[styles.bulletText, { color: c.warning }]}>{s}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Per-question breakdown */}
-      {answers.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>QUESTION-WISE BREAKDOWN</Text>
-          {answers.map((ans: any, i: number) => {
-            const qPct = ans.max_marks
-              ? Math.round((ans.marks_awarded / ans.max_marks) * 100) : null;
-            const qColor = qPct === null ? c.textMid : qPct >= 75 ? c.success : qPct >= 40 ? c.warning : c.danger;
-            return (
-              <View key={i} style={styles.answerRow}>
-                <View style={styles.answerLeft}>
-                  <Text style={styles.questionNo}>
-                    Q{ans.question_no ?? i + 1}
-                  </Text>
-                  {ans.feedback && (
-                    <Text style={styles.answerFeedback}>{ans.feedback}</Text>
-                  )}
-                </View>
-                {ans.max_marks !== undefined && (
-                  <View style={[styles.marksPill, { borderColor: `${qColor}50`, backgroundColor: `${qColor}12` }]}>
-                    <Text style={[styles.marksText, { color: qColor }]}>
-                      {ans.marks_awarded}/{ans.max_marks}
-                    </Text>
-                  </View>
+      {/* Analysis tab */}
+      {tab === "analysis" && (
+        <ScrollView contentContainerStyle={styles.scroll}>
+          {/* Score card */}
+          <View style={styles.scoreCard}>
+            <ScoreRing pct={pct} />
+            <View style={styles.scoreInfo}>
+              <Text style={styles.studentName}>{student.name || a.student?.name || "Unknown student"}</Text>
+              <View style={styles.metaRow}>
+                {(student.roll_no || a.student?.roll_no) && (
+                  <Text style={styles.metaChip}>Roll: {student.roll_no || a.student?.roll_no}</Text>
+                )}
+                {(student.class || a.student?.class) && (
+                  <Text style={styles.metaChip}>Class {student.class || a.student?.class}</Text>
                 )}
               </View>
-            );
-          })}
-        </View>
+              <Text style={[styles.bigMarks, { color: scoreColor }]}>
+                {obtained} <Text style={styles.bigMarksTotal}>/ {total} marks</Text>
+              </Text>
+            </View>
+          </View>
+
+          {/* Open sheet button (when on analysis tab) */}
+          {hasSheet && (
+            <TouchableOpacity style={styles.sheetLink} onPress={openSheet}>
+              <Text style={styles.sheetLinkText}>📄 Open Answer Sheet ↗</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Overall feedback + strengths + improvements */}
+          {(a.overall_feedback || a.strengths?.length > 0 || a.improvement_areas?.length > 0) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>OVERALL FEEDBACK</Text>
+              {a.overall_feedback && (
+                <Text style={styles.bodyText}>{a.overall_feedback}</Text>
+              )}
+              {a.strengths?.map((s: string, i: number) => (
+                <View key={i} style={styles.bulletRow}>
+                  <Text style={[styles.bullet, { color: c.success }]}>✓</Text>
+                  <Text style={[styles.bulletText, { color: c.success }]}>{s}</Text>
+                </View>
+              ))}
+              {a.improvement_areas?.map((s: string, i: number) => (
+                <View key={i} style={styles.bulletRow}>
+                  <Text style={[styles.bullet, { color: c.warning }]}>→</Text>
+                  <Text style={[styles.bulletText, { color: c.warning }]}>{s}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Question-by-question breakdown */}
+          {questions.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { marginBottom: 10 }]}>
+                QUESTION-WISE BREAKDOWN — tap to expand
+              </Text>
+              {questions.map((q: any) => (
+                <QuestionCard
+                  key={q.no}
+                  q={q}
+                  comment={comments[String(q.no)] || ""}
+                  onCommentChange={(no, val) =>
+                    setComments((prev) => ({ ...prev, [no]: val }))
+                  }
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Parse error */}
+          {a.parse_error && (
+            <View style={[styles.section, { borderColor: `${c.warning}40` }]}>
+              <Text style={[styles.sectionLabel, { color: c.warning }]}>⚠ PARSE WARNING</Text>
+              <Text style={styles.bodyText}>
+                Claude could not fully read this sheet. Try retaking photos with better lighting
+                and flat pages.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: c.bg },
-  center:       { alignItems: "center", justifyContent: "center" },
-  content:      { paddingBottom: 40 },
+  container:        { flex: 1, backgroundColor: c.bg },
+  center:           { alignItems: "center", justifyContent: "center" },
+  scroll:           { padding: 14, paddingBottom: 40 },
   // Header
-  header:       { flexDirection: "row", alignItems: "center", padding: 16, paddingTop: 52, borderBottomWidth: 1, borderBottomColor: c.border },
-  back:         { fontSize: 14, color: c.accent, minWidth: 52 },
-  headerTitle:  { flex: 1, fontSize: 15, fontWeight: "700", color: c.text, textAlign: "center" },
+  header:           { flexDirection: "row", alignItems: "center", padding: 16, paddingTop: 52, borderBottomWidth: 1, borderBottomColor: c.border },
+  back:             { fontSize: 14, color: c.accent, minWidth: 52 },
+  headerTitle:      { flex: 1, fontSize: 15, fontWeight: "700", color: c.text, textAlign: "center" },
+  saveBtn:          { backgroundColor: `${c.purple}25`, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: `${c.purple}50` },
+  saveBtnText:      { fontSize: 12, color: c.purple, fontWeight: "700" },
+  // Tabs
+  tabBar:           { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: c.border },
+  tabBtn:           { flex: 1, alignItems: "center", paddingVertical: 11 },
+  tabText:          { fontSize: 13, color: c.textDim },
+  tabTextActive:    { color: c.accent, fontWeight: "600" },
+  tabUnderline:     { height: 2, width: 60, backgroundColor: c.accent, borderRadius: 1, marginTop: 8 },
   // Score card
-  scoreCard:    { backgroundColor: c.card, margin: 16, borderRadius: 16, padding: 24, alignItems: "center", borderWidth: 1, borderColor: c.border },
-  scoreNum:     { fontSize: 44, fontWeight: "800", letterSpacing: -1 },
-  scorePct:     { fontSize: 22, fontWeight: "700", marginTop: 2 },
-  studentName:  { fontSize: 18, fontWeight: "700", color: c.text, marginTop: 16 },
-  metaRow:      { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6, marginTop: 8 },
-  metaChip:     { fontSize: 12, color: c.textMid, backgroundColor: c.bg, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, borderWidth: 1, borderColor: c.border },
-  dateText:     { fontSize: 11, color: c.textDim, marginTop: 10 },
+  scoreCard:        { flexDirection: "row", backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 12, gap: 14, alignItems: "center" },
+  ring:             { width: 72, height: 72, borderRadius: 36, borderWidth: 4, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  ringPct:          { fontSize: 18, fontWeight: "800" },
+  scoreInfo:        { flex: 1 },
+  studentName:      { fontSize: 16, fontWeight: "700", color: c.text, marginBottom: 4 },
+  metaRow:          { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 6 },
+  metaChip:         { fontSize: 11, color: c.textMid, backgroundColor: c.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: c.border },
+  bigMarks:         { fontSize: 22, fontWeight: "800" },
+  bigMarksTotal:    { fontSize: 13, fontWeight: "400", color: c.textMid },
+  // Sheet link
+  sheetLink:        { backgroundColor: `${c.accent}12`, borderRadius: 10, padding: 12, marginBottom: 12, alignItems: "center", borderWidth: 1, borderColor: `${c.accent}30` },
+  sheetLinkText:    { fontSize: 14, color: c.accent, fontWeight: "600" },
+  openSheetBtn:     { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 14 },
+  openSheetBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   // Sections
-  section:      { backgroundColor: c.card, marginHorizontal: 16, marginBottom: 12, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border },
-  sectionLabel: { fontSize: 11, fontWeight: "700", color: c.textMid, letterSpacing: 0.8, marginBottom: 10 },
-  bodyText:     { fontSize: 13, color: c.text, lineHeight: 20 },
-  bulletRow:    { flexDirection: "row", gap: 8, marginBottom: 6 },
-  bullet:       { fontSize: 14, lineHeight: 20, width: 14 },
-  bulletText:   { fontSize: 13, lineHeight: 20, flex: 1 },
-  // Answer breakdown
-  answerRow:    { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border, gap: 10 },
-  answerLeft:   { flex: 1 },
-  questionNo:   { fontSize: 13, fontWeight: "700", color: c.text, marginBottom: 3 },
-  answerFeedback: { fontSize: 12, color: c.textMid, lineHeight: 18 },
-  marksPill:    { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, alignItems: "center", justifyContent: "center" },
-  marksText:    { fontSize: 13, fontWeight: "700" },
+  section:          { backgroundColor: c.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.border, marginBottom: 12 },
+  sectionLabel:     { fontSize: 11, fontWeight: "700", color: c.textMid, letterSpacing: 0.8 },
+  bodyText:         { fontSize: 13, color: c.text, lineHeight: 20, marginTop: 6 },
+  bulletRow:        { flexDirection: "row", gap: 8, marginTop: 6 },
+  bullet:           { fontSize: 14, width: 16, lineHeight: 20 },
+  bulletText:       { fontSize: 13, lineHeight: 20, flex: 1 },
+  // Question card
+  qCard:            { borderWidth: 1, borderColor: c.border, borderRadius: 10, overflow: "hidden", marginBottom: 8 },
+  qHeader:          { flexDirection: "row", alignItems: "center", padding: 12, backgroundColor: c.card, gap: 10 },
+  qNum:             { width: 34, height: 34, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  qNumText:         { fontSize: 12, fontWeight: "700" },
+  qHeaderMid:       { flex: 1 },
+  qFeedbackPreview: { fontSize: 12, color: c.textMid },
+  qNoFeedback:      { fontSize: 12, color: c.textDim, fontStyle: "italic" },
+  qHeaderRight:     { flexDirection: "row", alignItems: "center", gap: 8 },
+  qMarks:           { fontSize: 13, fontWeight: "700" },
+  chevron:          { fontSize: 11, color: c.textDim },
+  qBody:            { padding: 14, backgroundColor: c.bg, borderTopWidth: 1, borderTopColor: c.border, gap: 12 },
+  qSection:         { gap: 4 },
+  qSectionLabel:    { fontSize: 11, fontWeight: "700", color: c.textDim, letterSpacing: 0.5 },
+  qSectionText:     { fontSize: 13, color: c.text, lineHeight: 20 },
+  qBox:             { backgroundColor: c.card, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: c.border },
+  qBoxText:         { fontSize: 13, color: c.textMid, lineHeight: 20 },
+  commentInput:     { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 10, fontSize: 13, color: c.text, minHeight: 60, textAlignVertical: "top", fontFamily: "System" },
+  purple:           c.purple,
 });

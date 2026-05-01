@@ -138,6 +138,10 @@ export const api = {
     request<{ test: any; results: any[] }>(`/api/analyzer/tests/${testId}/results`),
   getResult: (id: string) =>
     request<{ result: any }>(`/api/analyzer/results/${id}`),
+  saveComments: (id: string, comments: Record<string, string>) =>
+    request(`/api/analyzer/results/${id}/comments`, {
+      method: "PATCH", body: JSON.stringify({ comments }),
+    }),
 
   // Analytics
   getMyAnalytics: () => request<any>("/api/analytics/me"),
