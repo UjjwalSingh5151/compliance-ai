@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "EduGrade",
+    "slug": "edugrade-teacher",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d1117"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.kelzo.edugrade",
+      "infoPlist": {
+        "NSCameraUsageDescription": "EduGrade needs camera access to scan answer sheets and question papers.",
+        "NSPhotoLibraryUsageDescription": "EduGrade needs photo library access to select answer sheets from your gallery.",
+        "NSMicrophoneUsageDescription": "Required by camera."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d1117"
+      },
+      "package": "ai.kelzo.edugrade",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "EduGrade needs camera access to scan answer sheets and question papers.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "EduGrade needs photo library access to select answer sheets."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    }
+  }
+}
