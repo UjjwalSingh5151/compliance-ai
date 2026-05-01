@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import { c, card, btn, input } from "../lib/theme";
 
@@ -60,6 +60,35 @@ function parseExcel(file) {
 }
 
 const EMPTY = { name: "", email: "", classes: [], subjects: [] };
+
+// ─── Invite button ─────────────────────────────────────────────────────────────
+function InviteButton({ teacher }) {
+  const [status, setStatus] = useState(null); // null | "sending" | "sent" | "error"
+  const [msg, setMsg] = useState("");
+
+  const invite = async (e) => {
+    e.stopPropagation();
+    if (!teacher.email) { setMsg("Add an email address first"); setStatus("error"); return; }
+    setStatus("sending");
+    try {
+      await api.inviteTeacher(teacher.id);
+      setStatus("sent"); setMsg("Invite sent!");
+    } catch (err) {
+      setStatus("error"); setMsg(err.message);
+    }
+  };
+
+  if (status === "sent") return <span style={{ fontSize: 11, color: c.success, fontWeight: 600 }}>✓ Invited</span>;
+  if (status === "error") return (
+    <span style={{ fontSize: 11, color: c.danger }} title={msg}>✕ {msg.length > 28 ? msg.slice(0, 28) + "…" : msg}</span>
+  );
+  return (
+    <button style={{ ...btn.ghost, fontSize: 11, padding: "4px 10px", color: c.accent, border: `1px solid ${c.accent}30`, opacity: status === "sending" ? 0.6 : 1 }}
+      onClick={invite} disabled={status === "sending"}>
+      {status === "sending" ? "Sending…" : "✉ Invite"}
+    </button>
+  );
+}
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
@@ -297,7 +326,8 @@ export default function TeacherCRM({ isMobile }) {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                    <InviteButton teacher={t} />
                     <button style={{ ...btn.ghost, fontSize: 11, padding: "4px 10px" }} onClick={() => startEdit(t)}>Edit</button>
                     <button style={{ ...btn.ghost, fontSize: 11, padding: "4px 10px", color: c.danger }} onClick={() => deleteTeacher(t.id)}>✕</button>
                   </div>

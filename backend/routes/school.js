@@ -224,4 +224,42 @@ router.delete("/teachers/:id", requireSchool, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /teachers/:id/invite — send portal invite to a teacher by their stored email
+router.post("/teachers/:id/invite", requireSchool, async (req, res) => {
+  try {
+    if (req.schoolRole !== "owner") return res.status(403).json({ error: "Only school owner can invite" });
+    const { data: teacher, error: tErr } = await supabaseAdmin
+      .from("school_teachers").select("*").eq("id", req.params.id).eq("school_id", req.school.id).single();
+    if (tErr || !teacher) return res.status(404).json({ error: "Teacher not found" });
+    if (!teacher.email) return res.status(400).json({ error: "Teacher has no email address — edit the teacher record and add an email first." });
+
+    const cleanEmail = teacher.email.toLowerCase();
+    const { data: member, error: mErr } = await supabaseAdmin
+      .from("school_members")
+      .upsert({ school_id: req.school.id, invited_email: cleanEmail, role: "teacher", status: "pending" },
+        { onConflict: "school_id,invited_email" })
+      .select().single();
+    if (mErr) throw mErr;
+
+    const { error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(cleanEmail, {
+      data: { invited_by_school: req.school.name },
+    });
+    if (inviteErr) console.warn("Supabase invite email failed:", inviteErr.message);
+
+    res.json({ ok: true, member });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /credits — current credit balance + recent transactions
+router.get("/credits", requireSchool, async (req, res) => {
+  try {
+    const { data: school } = await supabaseAdmin
+      .from("schools").select("credits").eq("id", req.school.id).single();
+    const { data: transactions } = await supabaseAdmin
+      .from("credit_transactions").select("*")
+      .eq("school_id", req.school.id).order("created_at", { ascending: false }).limit(30);
+    res.json({ credits: school?.credits ?? 0, transactions: transactions || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;

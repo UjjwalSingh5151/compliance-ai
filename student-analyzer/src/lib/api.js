@@ -42,6 +42,9 @@ export const api = {
   updateSchoolStatus: (id, status) =>
     json(`/api/admin/schools/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
 
+  // Credits
+  getCredits: () => json("/api/school/credits"),
+
   // Teacher CRM
   getTeachers: () => json("/api/school/teachers"),
   addTeacher: (data) =>
@@ -52,6 +55,8 @@ export const api = {
     json(`/api/school/teachers/${id}`, { method: "DELETE" }),
   importTeachers: (teachers) =>
     json("/api/school/teachers/import", { method: "POST", body: JSON.stringify({ teachers }) }),
+  inviteTeacher: (id) =>
+    json(`/api/school/teachers/${id}/invite`, { method: "POST" }),
 
   // Student CRM
   getSchoolStudents: () => json("/api/school/students"),
@@ -123,6 +128,18 @@ export const api = {
     json("/api/papers/transcribe", { method: "POST", body: formData }),
   deletePaper: (id) =>
     json(`/api/papers/${id}`, { method: "DELETE" }),
+
+  // Analytics
+  getMyAnalytics: () => json("/api/analytics/me"),
+  getTeacherAnalytics: (teacherId) => json(`/api/analytics/teacher/${teacherId}`),
+  generatePlan: (data) =>
+    json("/api/analytics/plan", { method: "POST", body: JSON.stringify(data) }),
+
+  // Admin credits
+  getAdminCredits: () => json("/api/admin/credits"),
+  addSchoolCredits: (schoolId, amount, note) =>
+    json(`/api/admin/schools/${schoolId}/credits`, { method: "POST", body: JSON.stringify({ amount, note }) }),
+  getSchoolCreditHistory: (schoolId) => json(`/api/admin/schools/${schoolId}/credits/history`),
 
   // Student portal
   getStudentMe: () => json("/api/student/me"),

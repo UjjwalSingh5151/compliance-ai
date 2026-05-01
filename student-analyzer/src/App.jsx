@@ -19,6 +19,8 @@ import SchoolSettings from "./components/SchoolSettings";
 import StudentCRM from "./components/StudentCRM";
 import TeacherCRM from "./components/TeacherCRM";
 import PaperGenerator from "./components/PaperGenerator";
+import Analytics from "./components/Analytics";
+import Analytics from "./components/Analytics";
 import StudentPortal from "./components/StudentPortal";
 import StudentResultView from "./components/StudentResultView";
 import TestResults from "./components/TestResults";
@@ -63,6 +65,7 @@ export default function App() {
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [studentInfo, setStudentInfo] = useState(null);
   const [schoolLoading, setSchoolLoading] = useState(false);
+  const [credits, setCredits] = useState(null);
   const initial = hashToView();
   const [view, setView] = useState(initial.view);
   const [params, setParams] = useState(initial.params);
@@ -99,7 +102,7 @@ export default function App() {
 
   // Load school/student info + admin flag whenever user changes
   useEffect(() => {
-    if (!user) { setSchoolInfo(null); setStudentInfo(null); setIsAdmin(false); return; }
+    if (!user) { setSchoolInfo(null); setStudentInfo(null); setIsAdmin(false); setCredits(null); return; }
     setSchoolLoading(true);
     Promise.all([
       api.getMySchool().catch(() => ({ status: "none" })),
@@ -107,6 +110,10 @@ export default function App() {
     ]).then(([info, authMe]) => {
       setSchoolInfo(info);
       setIsAdmin(authMe.isAdmin ?? false);
+      // Load credit balance for approved school members
+      if (info?.status === "approved") {
+        api.getCredits().then(({ credits: bal }) => setCredits(bal)).catch(() => {});
+      }
       if (!info || info.status === "none") {
         api.getStudentMe()
           .then((s) => setStudentInfo(s?.student || null))
@@ -123,14 +130,16 @@ export default function App() {
   };
 
   const isOwner = isAdmin || schoolInfo?.role === "owner";
+  const isTeacher = schoolInfo?.role === "teacher";
   const NAV = [
-    { id: "dashboard",       label: "Tests",    icon: "📝" },
-    ...(isOwner ? [{ id: "students",     label: "Students", icon: "👥" }] : []),
-    ...(isOwner ? [{ id: "student-crm",  label: "CRM",      icon: "🗂️" }] : []),
-    ...(isOwner ? [{ id: "teacher-crm",  label: "Teachers", icon: "👩‍🏫" }] : []),
-    ...(isOwner ? [{ id: "paper-generator", label: "Papers",   icon: "📄" }] : []),
-    ...(isOwner ? [{ id: "school-settings", label: "Invite",  icon: "✉️" }] : []),
-    ...(isAdmin  ? [{ id: "admin",       label: "Admin",    icon: "🔑" }] : []),
+    { id: "dashboard",          label: "Tests",     icon: "📝" },
+    { id: "analytics",          label: "Analytics", icon: "📊" },
+    ...(isOwner ? [{ id: "students",         label: "Students",  icon: "👥" }] : []),
+    ...(isOwner ? [{ id: "student-crm",      label: "CRM",       icon: "🗂️" }] : []),
+    ...(isOwner ? [{ id: "teacher-crm",      label: "Teachers",  icon: "👩‍🏫" }] : []),
+    ...(isOwner ? [{ id: "paper-generator",  label: "Papers",    icon: "📄" }] : []),
+    ...(isOwner ? [{ id: "school-settings",  label: "Settings",  icon: "⚙️" }] : []),
+    ...(isAdmin  ? [{ id: "admin",           label: "Admin",     icon: "🔑" }] : []),
   ];
 
   if (authLoading || schoolLoading) {
@@ -231,6 +240,7 @@ export default function App() {
       case "student-crm":     return wrap("CRM",             <StudentCRM navigate={navigate} isMobile={isMobile} />);
       case "teacher-crm":     return wrap("Teachers",        <TeacherCRM isMobile={isMobile} />);
       case "paper-generator": return wrap("Papers",          <PaperGenerator isMobile={isMobile} />);
+      case "analytics":       return wrap("Analytics",       <Analytics isMobile={isMobile} schoolRole={schoolInfo?.role || (isAdmin ? "owner" : "teacher")} />);
       case "school-settings": return wrap("Settings",        <SchoolSettings school={schoolInfo?.school} isMobile={isMobile} />);
       case "student-portal":  return wrap("Student Portal",  <StudentPortal navigate={navigate} isMobile={isMobile} />);
       case "student-result":  return wrap("Student Result",  <StudentResultView params={params} navigate={navigate} isMobile={isMobile} />);
@@ -265,10 +275,19 @@ export default function App() {
             ))}
           </nav>
           <div style={{ padding: "12px 16px", borderTop: `1px solid ${c.border}` }}>
-            {userName && <div style={{ fontSize: 11, color: c.textMid, marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</div>}
+            {userName && <div style={{ fontSize: 11, color: c.textMid, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</div>}
             <div style={{ fontSize: 10, color: c.textDim, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {schoolInfo?.role === "owner" ? "School Owner" : "Teacher"}
             </div>
+            {credits !== null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, padding: "5px 8px", background: credits > 20 ? `${c.success}15` : credits > 0 ? `${c.warning}15` : `${c.danger}15`, borderRadius: 6, border: `1px solid ${credits > 20 ? c.success : credits > 0 ? c.warning : c.danger}25` }}>
+                <span style={{ fontSize: 14 }}>💳</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: credits > 20 ? c.success : credits > 0 ? c.warning : c.danger, lineHeight: 1 }}>{credits}</div>
+                  <div style={{ fontSize: 9, color: c.textDim }}>credits</div>
+                </div>
+              </div>
+            )}
             {authEnabled && user && (
               <button onClick={() => supabase.auth.signOut()}
                 style={{ fontSize: 11, color: c.textDim, background: "transparent", border: `1px solid ${c.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", width: "100%", fontFamily: "inherit" }}>

@@ -9,6 +9,7 @@ import adminRouter from "./routes/admin.js";
 import analyzerRouter from "./routes/analyzer.js";
 import studentRouter from "./routes/student.js";
 import papersRouter from "./routes/papers.js";
+import analyticsRouter from "./routes/analytics.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -34,6 +35,7 @@ app.use("/api/admin",     adminRouter);
 app.use("/api/analyzer",  analyzerRouter);
 app.use("/api/student",   studentRouter);
 app.use("/api/papers",    papersRouter);
+app.use("/api/analytics", analyticsRouter);
 
 // ─── Static frontend ──────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
   supabaseAdmin, client, upload,
-  fileToClaudeContent, uploadToStorage,
+  fileToClaudeContent, uploadToStorage, getPDFPageCount, deductCredits,
   requireSchool,
 } from "../lib/shared.js";
 
@@ -94,6 +94,10 @@ router.post(
         );
       }
 
+      // 1 credit per generation call
+      const { ok: hasCredits } = await deductCredits(req.school.id, 1, "generate", `Paper: ${subject}`);
+      if (!hasCredits) return res.status(402).json({ error: "Insufficient credits to generate a paper. Ask your admin to add more credits." });
+
       const prompt = `You are an expert teacher creating a question paper.
 ${formatFile ? "A FORMAT REFERENCE document is attached — follow its section structure, question types, and layout style exactly." : ""}
 
@@ -111,6 +115,12 @@ ${PAPER_SCHEMA}`;
       const userContent = formatFile
         ? [fileToClaudeContent(formatFile), { type: "text", text: prompt }]
         : [{ type: "text", text: prompt }];
+
+      // Deduct 5 credits for AI paper generation
+      const { ok: hasCredits } = await deductCredits(
+        req.school.id, 5, "generate", `AI generate: ${subject.trim()}`
+      );
+      if (!hasCredits) return res.status(402).json({ error: "Insufficient credits. Ask your admin to add more credits." });
 
       const response = await client.messages.create({
         model: "claude-sonnet-4-6",
@@ -160,6 +170,12 @@ router.post(
       if (!formatFile) return res.status(400).json({ error: "Format document is required" });
       if (!handwrittenFile) return res.status(400).json({ error: "Handwritten paper is required" });
 
+      // Deduct credits: 1 per page of handwritten file (the content being scanned)
+      const hwPages = handwrittenFile.mimetype === "application/pdf"
+        ? (getPDFPageCount(handwrittenFile.buffer) || 1) : 1;
+      const { ok: hasCredits } = await deductCredits(req.school.id, hwPages, "transcribe", `Transcribe: ${handwrittenFile.originalname}`);
+      if (!hasCredits) return res.status(402).json({ error: `Insufficient credits. Transcription requires ${hwPages} credit(s). Ask your admin to add more credits.` });
+
       const [formatUrl, sourceUrl] = await Promise.all([
         uploadToStorage(
           "generated-papers",
@@ -174,6 +190,12 @@ router.post(
           handwrittenFile.mimetype
         ),
       ]);
+
+      // Deduct 3 credits for transcription
+      const { ok: hasCredits } = await deductCredits(
+        req.school.id, 3, "transcribe", `Transcribe: ${handwrittenFile.originalname}`
+      );
+      if (!hasCredits) return res.status(402).json({ error: "Insufficient credits. Ask your admin to add more credits." });
 
       const prompt = `You are an expert teacher digitizing a handwritten question paper.
 

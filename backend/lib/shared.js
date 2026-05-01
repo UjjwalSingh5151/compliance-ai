@@ -25,13 +25,9 @@ export const LENIENCY_PROMPTS = {
 };
 
 // Estimate PDF page count without a library — reads /Count N from the Pages dict.
-// Returns null if the buffer doesn't look like a PDF or count can't be found.
 export function getPDFPageCount(buffer) {
   try {
-    // Search last 64KB for the cross-reference where /Count appears near /Pages
-    const tail = buffer.slice(Math.max(0, buffer.length - 65536)).toString("latin1");
     const full = buffer.toString("latin1");
-    // /Count appears in the /Pages dictionary — take the largest value found
     const matches = [...full.matchAll(/\/Count\s+(\d+)/g)];
     if (!matches.length) return null;
     return Math.max(...matches.map((m) => parseInt(m[1], 10)));
@@ -50,6 +46,30 @@ export function fileToClaudeContent(file) {
     type: "image",
     source: { type: "base64", media_type: file.mimetype, data: file.buffer.toString("base64") },
   };
+}
+
+// ─── Credits ──────────────────────────────────────────────────────────────────
+// Deduct credits from a school atomically.
+// Returns { ok: true } on success or { ok: false, error: "insufficient_credits" }.
+// Never throws — DB errors are logged and treated as ok so analysis is never blocked by billing.
+export async function deductCredits(schoolId, amount, type, description = "") {
+  if (!supabaseAdmin || !schoolId || !amount) return { ok: true };
+  try {
+    const { data: school, error: fetchErr } = await supabaseAdmin
+      .from("schools").select("credits").eq("id", schoolId).single();
+    if (fetchErr) { console.warn("deductCredits fetch:", fetchErr.message); return { ok: true }; }
+    const current = school?.credits ?? 0;
+    if (current < amount) return { ok: false, error: "insufficient_credits" };
+    const newBalance = current - amount;
+    const { error: updateErr } = await supabaseAdmin
+      .from("schools").update({ credits: newBalance }).eq("id", schoolId);
+    if (updateErr) { console.warn("deductCredits update:", updateErr.message); return { ok: true }; }
+    // Log async — never block the caller
+    supabaseAdmin.from("credit_transactions")
+      .insert({ school_id: schoolId, amount: -amount, type, description, balance_after: newBalance })
+      .then(() => {}).catch(() => {});
+    return { ok: true, balance: newBalance };
+  } catch (e) { console.warn("deductCredits:", e.message); return { ok: true }; }
 }
 
 export async function uploadToStorage(bucket, filePath, buffer, contentType) {

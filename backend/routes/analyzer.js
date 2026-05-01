@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   supabaseAdmin, client, upload,
   LENIENCY_PROMPTS, fileToClaudeContent, uploadToStorage,
-  getRequestUser, getUserSchool, getPDFPageCount,
+  getRequestUser, getUserSchool, getPDFPageCount, deductCredits,
 } from "../lib/shared.js";
 
 const MAX_PDF_PAGES = 80;   // Claude degrades above ~100 pages; 80 is safe
@@ -133,16 +133,17 @@ router.post("/tests/:testId/analyze", upload.array("sheets", 50), async (req, re
   const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
   try {
-    let questionPaperContent = "", totalMarks = 100, leniency = 3, instructions = "";
+    let questionPaperContent = "", totalMarks = 100, leniency = 3, instructions = "", schoolId = null;
     if (supabaseAdmin) {
       const { data: test } = await supabaseAdmin
-        .from("analyzer_tests").select("question_paper_content, total_marks, leniency, instructions")
+        .from("analyzer_tests").select("question_paper_content, total_marks, leniency, instructions, school_id")
         .eq("id", testId).single();
       if (test) {
         questionPaperContent = test.question_paper_content || "";
         totalMarks = test.total_marks || 100;
         leniency = test.leniency || 3;
         instructions = test.instructions || "";
+        schoolId = test.school_id || null;
       }
     }
 
@@ -158,12 +159,23 @@ router.post("/tests/:testId/analyze", upload.array("sheets", 50), async (req, re
           send({ type: "error", index: i, filename: file.originalname, error: `File is ${fileMB.toFixed(1)} MB — maximum allowed is ${MAX_FILE_MB} MB. Split into smaller files and upload again.` });
           continue;
         }
+        let pdfPageCount = null;
         if (file.mimetype === "application/pdf") {
-          const pageCount = getPDFPageCount(file.buffer);
-          if (pageCount !== null && pageCount > MAX_PDF_PAGES) {
-            send({ type: "error", index: i, filename: file.originalname, error: `PDF has ${pageCount} pages — maximum is ${MAX_PDF_PAGES} pages. Each student's answer sheet must be uploaded as a separate file. If this is one student's sheet, export only their pages and try again.` });
+          pdfPageCount = getPDFPageCount(file.buffer);
+          if (pdfPageCount !== null && pdfPageCount > MAX_PDF_PAGES) {
+            send({ type: "error", index: i, filename: file.originalname, error: `PDF has ${pdfPageCount} pages — maximum is ${MAX_PDF_PAGES} pages. Each student's answer sheet must be uploaded as a separate file. If this is one student's sheet, export only their pages and try again.` });
             continue;
           }
+        }
+
+        // ── Credit deduction ────────────────────────────────────────────────
+        const creditCost = file.mimetype === "application/pdf" ? (pdfPageCount || 1) : 1;
+        const { ok: hasCredits } = await deductCredits(
+          schoolId, creditCost, "analyze", `Sheet: ${file.originalname}`
+        );
+        if (!hasCredits) {
+          send({ type: "error", index: i, filename: file.originalname, error: `Insufficient credits. This file requires ${creditCost} credit(s). Ask your admin to add more credits.` });
+          continue;
         }
 
         const contentBlock = fileToClaudeContent(file);
@@ -244,10 +256,6 @@ IMPORTANT: Your entire response must be a single valid JSON object. No markdown,
             file.buffer,
             file.mimetype
           );
-
-          const { data: testRow } = await supabaseAdmin
-            .from("analyzer_tests").select("school_id").eq("id", testId).single();
-          const schoolId = testRow?.school_id || null;
 
           if (student.roll_no) {
             let q = supabaseAdmin.from("analyzer_students").select("id, email").eq("roll_no", student.roll_no);
