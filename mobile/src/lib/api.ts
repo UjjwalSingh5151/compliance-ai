@@ -133,6 +133,12 @@ export const api = {
   generatePaper: (formData: FormData) =>
     request<{ paper: any }>("/api/papers/generate", { method: "POST", body: formData }),
 
+  // Test results
+  getTestResults: (testId: string) =>
+    request<{ test: any; results: any[] }>(`/api/analyzer/tests/${testId}/results`),
+  getResult: (id: string) =>
+    request<{ result: any }>(`/api/analyzer/results/${id}`),
+
   // Analytics
   getMyAnalytics: () => request<any>("/api/analytics/me"),
 };

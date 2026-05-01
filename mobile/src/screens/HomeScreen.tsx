@@ -65,7 +65,7 @@ export default function HomeScreen({ navigation }: any) {
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => navigation.navigate("Scan", { test: item })}
+        onPress={() => navigation.navigate("TestResults", { test: item })}
         activeOpacity={0.75}
       >
         <View style={styles.cardRow}>
@@ -141,6 +141,16 @@ export default function HomeScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
+      {/* ── Corrected Copies link ──────────────────────── */}
+      <TouchableOpacity
+        style={styles.correctedBtn}
+        onPress={() => navigation.navigate("CorrectedCopies")}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.correctedBtnText}>📂 View Corrected Copies</Text>
+        <Text style={styles.correctedBtnArrow}>›</Text>
+      </TouchableOpacity>
+
       {/* ── Tests list ─────────────────────────────────── */}
       <Text style={styles.sectionLabel}>RECENT PAPERS</Text>
 
@@ -190,6 +200,10 @@ const styles = StyleSheet.create({
   actionIcon:     { fontSize: 28, marginBottom: 6 },
   actionLabel:    { fontSize: 15, fontWeight: "700", marginBottom: 4 },
   actionSub:      { fontSize: 11, color: c.textDim, textAlign: "center", lineHeight: 16 },
+  // Corrected copies button
+  correctedBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginBottom: 12, backgroundColor: c.card, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: c.border },
+  correctedBtnText: { fontSize: 14, fontWeight: "600", color: c.text },
+  correctedBtnArrow:{ fontSize: 20, color: c.textDim },
   // Section
   sectionLabel:   { fontSize: 11, fontWeight: "700", color: c.textDim, letterSpacing: 0.8, paddingHorizontal: 16, paddingBottom: 8 },
   // List
