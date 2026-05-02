@@ -126,6 +126,13 @@ export const api = {
     });
   },
 
+  // Extract details from question paper image/PDF
+  extractPaper: (formData: FormData) =>
+    request<{ name: string; subject: string; totalMarks: number; instructions: string }>(
+      "/api/analyzer/extract-paper",
+      { method: "POST", body: formData }
+    ),
+
   // Papers
   getPapers: () => request<{ papers: any[] }>("/api/papers"),
   transcribePaper: (formData: FormData) =>

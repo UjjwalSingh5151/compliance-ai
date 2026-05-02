@@ -1,11 +1,12 @@
 /**
- * ScanScreen — scan student answer sheet notebooks for a specific test.
+ * ScanScreen — scan student answer-sheet notebooks for a specific test.
  *
  * Steps:
- *  1. CAPTURE  — take photos of the notebook pages
- *  2. REVIEW   — reorder / delete pages
- *  3. UPLOADING — compress → stitch PDF on device → POST to /analyze → SSE
- *  4. RESULT   — show marks + feedback → "Scan another" or go home
+ *  CAPTURE   — photograph pages of ONE student's copy
+ *              "Copy Done (N pages)" → adds copy to queue → go to COPIES
+ *  COPIES    — review queued copies, add more, or "Analyze All"
+ *  UPLOADING — convert each copy to PDF + stream SSE analysis (one by one)
+ *  RESULTS   — show all analysis results as a scored list
  */
 
 import React, { useState, useRef } from "react";
@@ -21,112 +22,93 @@ import { c } from "../lib/theme";
 import { logError } from "../lib/errorLog";
 
 const { width: SCREEN_W } = Dimensions.get("window");
+const THUMB = (SCREEN_W - 48) / 3;
 
-type Step = "capture" | "review" | "uploading" | "result";
+type Step = "capture" | "copies" | "uploading" | "results";
 
-interface ScanEvent {
-  type: string;
-  analysis?: any;
-  resultId?: string;
-  shareToken?: string;
-  error?: string;
+interface Copy {
+  id: string;
+  pages: PhotoPage[];
 }
 
-// ─── Result view ──────────────────────────────────────────────────────────────
-function ResultView({
-  event, test, onScanAnother, onGoHome,
-}: {
-  event: ScanEvent; test: any; onScanAnother: () => void; onGoHome: () => void;
-}) {
-  const a = event.analysis;
-  const pct = a?.total_marks ? Math.round((a.marks_obtained / a.total_marks) * 100) : 0;
-  const scoreColor = pct >= 75 ? c.success : pct >= 50 ? c.warning : c.danger;
+interface ScanResult {
+  copyId:   string;
+  copyNum:  number;
+  analysis: any;
+  error?:   string;
+}
+
+// ─── Result card ──────────────────────────────────────────────────────────────
+function ResultCard({ result, totalMarks }: { result: ScanResult; totalMarks: number }) {
+  if (result.error) {
+    return (
+      <View style={[styles.resultCard, { borderColor: c.danger }]}>
+        <Text style={styles.resultCopyLabel}>Copy {result.copyNum}</Text>
+        <Text style={[styles.resultError, { color: c.danger }]}>⚠ {result.error}</Text>
+      </View>
+    );
+  }
+
+  const a   = result.analysis;
+  const tot = a?.total_marks ?? totalMarks;
+  const obt = a?.marks_obtained ?? 0;
+  const pct = tot ? Math.round((obt / tot) * 100) : 0;
+  const col = pct >= 75 ? c.success : pct >= 50 ? c.warning : c.danger;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={onGoHome}>
-          <Text style={styles.backText}>← Home</Text>
-        </TouchableOpacity>
-        <Text style={styles.testLabel} numberOfLines={1}>{test.name}</Text>
-        <View style={{ width: 56 }} />
+    <View style={styles.resultCard}>
+      {/* Header row */}
+      <View style={styles.resultRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.resultCopyLabel}>Copy {result.copyNum}</Text>
+          {a?.student?.name && (
+            <Text style={styles.resultStudentName}>{a.student.name}</Text>
+          )}
+          {a?.student?.roll_no && (
+            <Text style={styles.resultMeta}>Roll: {a.student.roll_no}</Text>
+          )}
+        </View>
+        <View style={[styles.scoreBadge, { borderColor: col }]}>
+          <Text style={[styles.scoreNum, { color: col }]}>{obt}/{tot}</Text>
+          <Text style={[styles.scorePct, { color: col }]}>{pct}%</Text>
+        </View>
       </View>
-
-      <Text style={styles.sectionTitle}>✅ Analysis Complete</Text>
-
-      {/* Score card */}
-      <View style={styles.scoreCard}>
-        <Text style={[styles.scoreNum, { color: scoreColor }]}>
-          {a?.marks_obtained ?? 0}/{a?.total_marks ?? test.total_marks}
-        </Text>
-        <Text style={[styles.scorePct, { color: scoreColor }]}>{pct}%</Text>
-        {a?.student?.name && <Text style={styles.studentName}>{a.student.name}</Text>}
-        {a?.student?.roll_no && <Text style={styles.studentMeta}>Roll: {a.student.roll_no}</Text>}
-      </View>
-
-      {/* Overall feedback */}
-      {a?.overall_feedback && (
-        <View style={styles.feedbackCard}>
-          <Text style={styles.feedbackLabel}>OVERALL FEEDBACK</Text>
-          <Text style={styles.feedbackText}>{a.overall_feedback}</Text>
-        </View>
-      )}
-
-      {/* Strengths */}
-      {a?.strengths?.length > 0 && (
-        <View style={styles.feedbackCard}>
-          <Text style={[styles.feedbackLabel, { color: c.success }]}>STRENGTHS</Text>
-          {a.strengths.map((s: string, i: number) => (
-            <Text key={i} style={[styles.bulletText, { color: c.success }]}>✓ {s}</Text>
-          ))}
-        </View>
-      )}
-
-      {/* Areas for improvement */}
-      {a?.improvement_areas?.length > 0 && (
-        <View style={styles.feedbackCard}>
-          <Text style={[styles.feedbackLabel, { color: c.warning }]}>NEEDS IMPROVEMENT</Text>
-          {a.improvement_areas.map((s: string, i: number) => (
-            <Text key={i} style={[styles.bulletText, { color: c.warning }]}>→ {s}</Text>
-          ))}
-        </View>
-      )}
 
       {a?.parse_error && (
-        <View style={[styles.feedbackCard, { borderColor: c.warning }]}>
-          <Text style={[styles.feedbackLabel, { color: c.warning }]}>⚠ SCAN WARNING</Text>
-          <Text style={styles.feedbackText}>
-            Could not fully read this sheet. Try retaking photos with better lighting and ensure
-            pages are flat.
-          </Text>
-        </View>
+        <Text style={styles.parseWarn}>
+          ⚠ Partial read — try better lighting / flatter pages
+        </Text>
       )}
 
-      <View style={{ gap: 10, marginTop: 8 }}>
-        <TouchableOpacity style={styles.primaryBtn} onPress={onScanAnother}>
-          <Text style={styles.primaryBtnText}>📷 Scan Next Notebook</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryBtn} onPress={onGoHome}>
-          <Text style={styles.secondaryBtnText}>← Back to Home</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      {a?.overall_feedback && (
+        <Text style={styles.feedbackText} numberOfLines={3}>
+          {a.overall_feedback}
+        </Text>
+      )}
+    </View>
   );
 }
 
 // ─── Main ScanScreen ──────────────────────────────────────────────────────────
 export default function ScanScreen({ route, navigation }: any) {
   const { test, freshlyCreated } = route.params;
+
   const [permission, requestPermission] = useCameraPermissions();
-  const [photos, setPhotos]   = useState<PhotoPage[]>([]);
-  const [step, setStep]       = useState<Step>("capture");
+  const cameraRef = useRef<any>(null);
+
+  // Current copy being photographed
+  const [currentPages, setCurrentPages] = useState<PhotoPage[]>([]);
+
+  // Queue of completed copies waiting for analysis
+  const [copies, setCopies]     = useState<Copy[]>([]);
+
+  const [step, setStep]         = useState<Step>("capture");
   const [progress, setProgress] = useState("");
-  const [result, setResult]   = useState<ScanEvent | null>(null);
-  const cameraRef             = useRef<any>(null);
+  const [results, setResults]   = useState<ScanResult[]>([]);
 
   const goHome = () => navigation.navigate("Home");
 
-  // ─── Camera permissions ───────────────────────────────────────────────────
+  // ── Camera permission ─────────────────────────────────────────────────────
   if (!permission) return <View style={styles.container} />;
   if (!permission.granted) {
     return (
@@ -139,12 +121,14 @@ export default function ScanScreen({ route, navigation }: any) {
     );
   }
 
-  // ─── Photo capture ────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const takePhoto = async () => {
     if (!cameraRef.current) return;
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false });
-      setPhotos((prev) => [...prev, { uri: photo.uri }]);
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.9, skipProcessing: false,
+      });
+      setCurrentPages((prev) => [...prev, { uri: photo.uri }]);
     } catch (e: any) {
       logError(e.message, "ScanScreen:takePhoto");
       Alert.alert("Camera error", e.message);
@@ -157,7 +141,9 @@ export default function ScanScreen({ route, navigation }: any) {
         allowsMultipleSelection: true, quality: 0.9,
       });
       if (!result.canceled) {
-        setPhotos((prev) => [...prev, ...result.assets.map((a) => ({ uri: a.uri }))]);
+        setCurrentPages((prev) => [
+          ...prev, ...result.assets.map((a) => ({ uri: a.uri })),
+        ]);
       }
     } catch (e: any) {
       logError(e.message, "ScanScreen:gallery");
@@ -165,212 +151,334 @@ export default function ScanScreen({ route, navigation }: any) {
     }
   };
 
-  // ─── Upload + analyze ─────────────────────────────────────────────────────
-  const upload = async () => {
-    if (!photos.length) return;
-    setStep("uploading");
-    try {
-      setProgress("Preparing PDF…");
-      const pdfUri = await photosToPDF(photos, (cur, total) => {
-        setProgress(`Processing page ${cur}/${total}…`);
-      });
-
-      setProgress("Uploading to EduGrade…");
-      const filename = `scan-${Date.now()}.pdf`;
-
-      await api.analyzeSheet(test.id, pdfUri, filename, (event: ScanEvent) => {
-        if (event.type === "result") {
-          setResult(event);
-          setStep("result");
-        } else if (event.type === "error") {
-          const msg = event.error || "Something went wrong";
-          logError(msg, "ScanScreen:SSE");
-          Alert.alert("Analysis error", msg);
-          setStep("review");
-        } else if (event.type === "progress") {
-          setProgress("Analyzing with Claude…");
-        }
-      });
-    } catch (e: any) {
-      logError(e.message, "ScanScreen:upload");
-      Alert.alert("Upload failed", e.message);
-      setStep("review");
-    }
+  /** Finish scanning current copy → add to queue → show copies list */
+  const finishCopy = () => {
+    if (!currentPages.length) return;
+    const newCopy: Copy = { id: Date.now().toString(), pages: [...currentPages] };
+    setCopies((prev) => [...prev, newCopy]);
+    setCurrentPages([]);
+    setStep("copies");
   };
 
-  // ─── Render: result ───────────────────────────────────────────────────────
-  if (step === "result" && result) {
-    return (
-      <ResultView
-        event={result}
-        test={test}
-        onScanAnother={() => { setPhotos([]); setResult(null); setStep("capture"); }}
-        onGoHome={goHome}
-      />
-    );
-  }
+  /** Upload all queued copies sequentially and stream results */
+  const analyzeAll = async () => {
+    const queue = [...copies];
+    if (!queue.length) return;
+    setStep("uploading");
+    const collected: ScanResult[] = [];
 
-  // ─── Render: uploading ────────────────────────────────────────────────────
-  if (step === "uploading") {
+    for (let i = 0; i < queue.length; i++) {
+      const copy = queue[i];
+      setProgress(`Preparing copy ${i + 1} of ${queue.length}…`);
+      try {
+        const pdfUri = await photosToPDF(copy.pages, (cur, tot) => {
+          setProgress(`Copy ${i + 1}/${queue.length} — page ${cur}/${tot}…`);
+        });
+        const filename = `scan-c${i + 1}-${Date.now()}.pdf`;
+        setProgress(`Analyzing copy ${i + 1} of ${queue.length}…`);
+
+        await api.analyzeSheet(test.id, pdfUri, filename, (event: any) => {
+          if (event.type === "result") {
+            const r: ScanResult = {
+              copyId:   copy.id,
+              copyNum:  i + 1,
+              analysis: event.analysis,
+            };
+            collected.push(r);
+          } else if (event.type === "error") {
+            collected.push({
+              copyId:  copy.id,
+              copyNum: i + 1,
+              analysis: null,
+              error:   event.error || "Analysis failed",
+            });
+          }
+        });
+      } catch (e: any) {
+        logError(e.message, `ScanScreen:copy${i + 1}`);
+        collected.push({
+          copyId:  copy.id,
+          copyNum: i + 1,
+          analysis: null,
+          error:   e.message,
+        });
+      }
+    }
+
+    setResults(collected);
+    setStep("results");
+  };
+
+  // ── CAPTURE ───────────────────────────────────────────────────────────────
+  if (step === "capture") {
+    const hasExisting = copies.length > 0;
+
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={c.accent} />
-        <Text style={styles.progressText}>{progress}</Text>
-        <Text style={styles.progressSub}>
-          {photos.length} page{photos.length !== 1 ? "s" : ""} · {test.name}
+      <View style={styles.container}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={hasExisting ? () => setStep("copies") : goHome}>
+            <Text style={styles.backText}>
+              {hasExisting ? `← Queue (${copies.length})` : "← Home"}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.testLabel} numberOfLines={1}>
+            {freshlyCreated && copies.length === 0 ? "📷 Scan first copy" : test.name}
+          </Text>
+          <View style={{ width: 80 }} />
+        </View>
+
+        {freshlyCreated && copies.length === 0 && (
+          <View style={styles.infoBanner}>
+            <Text style={styles.infoBannerText}>
+              ✅ Test created! Photograph the student's answer sheet pages.
+              Tap "Copy Done" when finished with one student.
+            </Text>
+          </View>
+        )}
+
+        <Text style={styles.captureHint}>
+          Scanning copy {copies.length + 1}
+          {currentPages.length > 0 ? ` · ${currentPages.length} page${currentPages.length !== 1 ? "s" : ""}` : ""}
         </Text>
+
+        <View style={styles.cameraWrapper}>
+          <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+          {currentPages.length > 0 && (
+            <View style={styles.strip}>
+              {currentPages.slice(-5).map((p, i) => (
+                <Image key={i} source={{ uri: p.uri }} style={styles.stripThumb} />
+              ))}
+              {currentPages.length > 5 && (
+                <View style={styles.stripMore}>
+                  <Text style={styles.stripMoreText}>+{currentPages.length - 5}</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.controls}>
+          <TouchableOpacity style={styles.galleryBtn} onPress={pickFromGallery}>
+            <Text style={styles.galleryIcon}>🖼</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.shutter} onPress={takePhoto}>
+            <View style={styles.shutterInner} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.copyDoneBtn, currentPages.length === 0 && { opacity: 0.3 }]}
+            onPress={finishCopy}
+          >
+            <Text style={styles.copyDoneBtnText}>
+              Copy{"\n"}Done{currentPages.length > 0 ? `\n(${currentPages.length})` : ""}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
-  // ─── Render: review ───────────────────────────────────────────────────────
-  const THUMB = (SCREEN_W - 48) / 3;
-
-  if (step === "review") {
+  // ── COPIES ────────────────────────────────────────────────────────────────
+  if (step === "copies") {
     return (
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => setStep("capture")}>
-            <Text style={styles.backText}>← Add more</Text>
+          <TouchableOpacity onPress={goHome}>
+            <Text style={styles.backText}>← Home</Text>
           </TouchableOpacity>
-          <Text style={styles.testLabel}>{photos.length} page{photos.length !== 1 ? "s" : ""}</Text>
-          <TouchableOpacity style={styles.uploadBtn} onPress={upload}>
-            <Text style={styles.uploadBtnText}>Analyze →</Text>
-          </TouchableOpacity>
+          <Text style={styles.testLabel} numberOfLines={1}>{test.name}</Text>
+          <View style={{ width: 60 }} />
+        </View>
+
+        <View style={styles.copiesHeader}>
+          <Text style={styles.copiesTitle}>
+            {copies.length} cop{copies.length !== 1 ? "ies" : "y"} queued
+          </Text>
+          <Text style={styles.copiesHint}>
+            Add more copies or tap Analyze to upload all at once
+          </Text>
         </View>
 
         <FlatList
-          data={photos}
-          keyExtractor={(_, i) => i.toString()}
-          numColumns={3}
-          contentContainerStyle={{ padding: 8 }}
+          data={copies}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: 12 }}
           renderItem={({ item, index }) => (
-            <View style={{ width: THUMB, height: THUMB * 1.3, margin: 4, position: "relative" }}>
-              <Image source={{ uri: item.uri }} style={{ width: "100%", height: "100%", borderRadius: 6 }} />
-              <Text style={styles.pageNum}>{index + 1}</Text>
+            <View style={styles.copyCard}>
+              {/* First page thumb */}
+              <Image
+                source={{ uri: item.pages[0].uri }}
+                style={styles.copyThumb}
+              />
+              {/* Info */}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.copyCardTitle}>Copy {index + 1}</Text>
+                <Text style={styles.copyCardMeta}>
+                  {item.pages.length} page{item.pages.length !== 1 ? "s" : ""}
+                </Text>
+                {/* Row of small thumbs */}
+                <View style={styles.copyMiniStrip}>
+                  {item.pages.slice(0, 5).map((p, pi) => (
+                    <Image key={pi} source={{ uri: p.uri }} style={styles.copyMiniThumb} />
+                  ))}
+                  {item.pages.length > 5 && (
+                    <View style={styles.copyMiniMore}>
+                      <Text style={styles.copyMiniMoreText}>+{item.pages.length - 5}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              {/* Delete */}
               <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => setPhotos((prev) => prev.filter((_, i) => i !== index))}
+                style={styles.copyDeleteBtn}
+                onPress={() => setCopies((prev) => prev.filter((cp) => cp.id !== item.id))}
               >
-                <Text style={styles.deleteBtnText}>✕</Text>
+                <Text style={styles.copyDeleteText}>✕</Text>
               </TouchableOpacity>
             </View>
           )}
         />
 
-        <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: c.border }}>
-          <Text style={{ fontSize: 11, color: c.textDim, textAlign: "center" }}>
-            Tap ✕ to remove a page. Order = analysis order.
-          </Text>
+        <View style={styles.copiesFooter}>
+          <TouchableOpacity
+            style={styles.addCopyBtn}
+            onPress={() => setStep("capture")}
+          >
+            <Text style={styles.addCopyBtnText}>+ Add Another Copy</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.analyzeAllBtn, copies.length === 0 && { opacity: 0.35 }]}
+            onPress={analyzeAll}
+            disabled={copies.length === 0}
+          >
+            <Text style={styles.analyzeAllBtnText}>
+              Analyze All ({copies.length}) →
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  // ─── Render: capture ──────────────────────────────────────────────────────
+  // ── UPLOADING ─────────────────────────────────────────────────────────────
+  if (step === "uploading") {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={c.accent} />
+        <Text style={styles.progressText}>{progress}</Text>
+        <Text style={styles.progressSub}>{test.name}</Text>
+      </View>
+    );
+  }
+
+  // ── RESULTS ───────────────────────────────────────────────────────────────
+  const passed  = results.filter((r) => !r.error).length;
+  const errored = results.filter((r) =>  r.error).length;
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
       <View style={styles.topBar}>
         <TouchableOpacity onPress={goHome}>
           <Text style={styles.backText}>← Home</Text>
         </TouchableOpacity>
-        <Text style={styles.testLabel} numberOfLines={1}>
-          {freshlyCreated ? "📷 Scan first notebook" : test.name}
-        </Text>
-        {photos.length > 0 && (
-          <TouchableOpacity onPress={() => setStep("review")}>
-            <Text style={styles.reviewLink}>Review ({photos.length}) →</Text>
-          </TouchableOpacity>
-        )}
-        {photos.length === 0 && <View style={{ width: 80 }} />}
+        <Text style={styles.testLabel} numberOfLines={1}>{test.name}</Text>
+        <View style={{ width: 56 }} />
       </View>
 
-      {freshlyCreated && (
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoBannerText}>
-            ✅ Test created! Now photograph the student's answer sheets one by one.
-          </Text>
-        </View>
-      )}
+      <Text style={styles.sectionTitle}>
+        ✅ {passed} analyzed{errored > 0 ? ` · ⚠ ${errored} failed` : ""}
+      </Text>
 
-      <View style={styles.cameraWrapper}>
-        <CameraView ref={cameraRef} style={styles.camera} facing="back" />
-        {photos.length > 0 && (
-          <View style={styles.strip}>
-            {photos.slice(-5).map((p, i) => (
-              <Image key={i} source={{ uri: p.uri }} style={styles.stripThumb} />
-            ))}
-            {photos.length > 5 && (
-              <View style={styles.stripMore}>
-                <Text style={styles.stripMoreText}>+{photos.length - 5}</Text>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
+      {results.map((r) => (
+        <ResultCard key={r.copyId} result={r} totalMarks={test.total_marks} />
+      ))}
 
-      <View style={styles.controls}>
-        <TouchableOpacity style={styles.galleryBtn} onPress={pickFromGallery}>
-          <Text style={styles.galleryIcon}>🖼</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.shutter} onPress={takePhoto}>
-          <View style={styles.shutterInner} />
-        </TouchableOpacity>
-
+      <View style={{ gap: 10, marginTop: 16 }}>
         <TouchableOpacity
-          style={[styles.doneCapture, photos.length === 0 && { opacity: 0.3 }]}
-          onPress={() => photos.length > 0 && setStep("review")}
+          style={styles.primaryBtn}
+          onPress={() => {
+            setCopies([]);
+            setResults([]);
+            setCurrentPages([]);
+            setStep("capture");
+          }}
         >
-          <Text style={styles.doneCaptureText}>Done{"\n"}({photos.length})</Text>
+          <Text style={styles.primaryBtnText}>📷 Scan More Copies</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryBtn} onPress={goHome}>
+          <Text style={styles.secondaryBtnText}>← Back to Home</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: c.bg },
-  center:         { alignItems: "center", justifyContent: "center" },
-  topBar:         { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, paddingTop: 52, backgroundColor: c.bg },
-  testLabel:      { flex: 1, textAlign: "center", fontSize: 13, fontWeight: "600", color: c.text, marginHorizontal: 8 },
-  backText:       { fontSize: 14, color: c.accent, minWidth: 56 },
-  reviewLink:     { fontSize: 13, color: c.accent, fontWeight: "600" },
-  infoBanner:     { backgroundColor: `${c.success}18`, borderBottomWidth: 1, borderBottomColor: `${c.success}30`, padding: 12 },
-  infoBannerText: { fontSize: 12, color: c.success, textAlign: "center", lineHeight: 18 },
-  cameraWrapper:  { flex: 1, position: "relative" },
-  camera:         { flex: 1 },
-  strip:          { position: "absolute", bottom: 8, left: 8, flexDirection: "row", gap: 4, zIndex: 10 },
-  stripThumb:     { width: 44, height: 56, borderRadius: 4, borderWidth: 1, borderColor: "#fff" },
-  stripMore:      { width: 44, height: 56, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
-  stripMoreText:  { color: "#fff", fontSize: 12, fontWeight: "700" },
-  controls:       { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 24, paddingHorizontal: 32, backgroundColor: c.bg },
-  galleryBtn:     { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
-  galleryIcon:    { fontSize: 28 },
-  shutter:        { width: 72, height: 72, borderRadius: 36, borderWidth: 4, borderColor: "#fff", alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
-  shutterInner:   { width: 58, height: 58, borderRadius: 29, backgroundColor: "#fff" },
-  doneCapture:    { width: 60, height: 50, backgroundColor: c.accent, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  doneCaptureText:{ color: "#fff", fontSize: 11, fontWeight: "700", textAlign: "center" },
-  uploadBtn:      { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  uploadBtnText:  { color: "#fff", fontWeight: "700", fontSize: 13 },
-  pageNum:        { position: "absolute", bottom: 4, left: 6, fontSize: 11, color: "#fff", fontWeight: "700", textShadowColor: "#000", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-  deleteBtn:      { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
-  deleteBtnText:  { color: "#fff", fontSize: 11, fontWeight: "700" },
-  progressText:   { fontSize: 15, fontWeight: "600", color: c.text, marginTop: 20, paddingHorizontal: 32, textAlign: "center" },
-  progressSub:    { fontSize: 12, color: c.textMid, marginTop: 6 },
-  permText:       { fontSize: 14, color: c.text, textAlign: "center", paddingHorizontal: 32, marginBottom: 20 },
-  sectionTitle:   { fontSize: 17, fontWeight: "700", color: c.text, marginBottom: 16 },
-  scoreCard:      { backgroundColor: c.card, borderRadius: 12, padding: 24, alignItems: "center", borderWidth: 1, borderColor: c.border, marginBottom: 12 },
-  scoreNum:       { fontSize: 40, fontWeight: "700" },
-  scorePct:       { fontSize: 20, fontWeight: "600", marginTop: 2 },
-  studentName:    { fontSize: 16, fontWeight: "600", color: c.text, marginTop: 12 },
-  studentMeta:    { fontSize: 12, color: c.textMid, marginTop: 2 },
-  feedbackCard:   { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 10 },
-  feedbackLabel:  { fontSize: 11, fontWeight: "700", color: c.textMid, letterSpacing: 0.5, marginBottom: 8 },
-  feedbackText:   { fontSize: 13, color: c.text, lineHeight: 20 },
-  bulletText:     { fontSize: 13, lineHeight: 22, marginLeft: 4 },
-  primaryBtn:     { backgroundColor: c.accent, borderRadius: 10, padding: 16, alignItems: "center" },
-  primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  secondaryBtn:   { backgroundColor: c.card, borderRadius: 10, padding: 16, alignItems: "center", borderWidth: 1, borderColor: c.border },
-  secondaryBtnText: { color: c.accent, fontWeight: "700", fontSize: 14 },
+  container:       { flex: 1, backgroundColor: c.bg },
+  center:          { alignItems: "center", justifyContent: "center" },
+  topBar:          { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, paddingTop: 52, backgroundColor: c.bg },
+  testLabel:       { flex: 1, textAlign: "center", fontSize: 13, fontWeight: "600", color: c.text, marginHorizontal: 8 },
+  backText:        { fontSize: 14, color: c.accent, minWidth: 80 },
+  // Capture
+  infoBanner:      { backgroundColor: `${c.success}18`, borderBottomWidth: 1, borderBottomColor: `${c.success}30`, padding: 12 },
+  infoBannerText:  { fontSize: 12, color: c.success, textAlign: "center", lineHeight: 18 },
+  captureHint:     { fontSize: 12, color: c.textDim, textAlign: "center", paddingVertical: 6 },
+  cameraWrapper:   { flex: 1, position: "relative" },
+  camera:          { flex: 1 },
+  strip:           { position: "absolute", bottom: 8, left: 8, flexDirection: "row", gap: 4, zIndex: 10 },
+  stripThumb:      { width: 44, height: 56, borderRadius: 4, borderWidth: 1, borderColor: "#fff" },
+  stripMore:       { width: 44, height: 56, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  stripMoreText:   { color: "#fff", fontSize: 12, fontWeight: "700" },
+  controls:        { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 24, paddingHorizontal: 32, backgroundColor: c.bg },
+  galleryBtn:      { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
+  galleryIcon:     { fontSize: 28 },
+  shutter:         { width: 72, height: 72, borderRadius: 36, borderWidth: 4, borderColor: "#fff", alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
+  shutterInner:    { width: 58, height: 58, borderRadius: 29, backgroundColor: "#fff" },
+  copyDoneBtn:     { width: 68, height: 54, backgroundColor: c.accent, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  copyDoneBtnText: { color: "#fff", fontSize: 10, fontWeight: "700", textAlign: "center", lineHeight: 14 },
+  // Copies queue
+  copiesHeader:    { padding: 16, paddingBottom: 8 },
+  copiesTitle:     { fontSize: 18, fontWeight: "700", color: c.text },
+  copiesHint:      { fontSize: 12, color: c.textDim, marginTop: 2 },
+  copyCard:        { flexDirection: "row", backgroundColor: c.card, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: c.border, alignItems: "center", gap: 12 },
+  copyThumb:       { width: 56, height: 72, borderRadius: 6 },
+  copyCardTitle:   { fontSize: 14, fontWeight: "700", color: c.text },
+  copyCardMeta:    { fontSize: 12, color: c.textMid, marginTop: 2 },
+  copyMiniStrip:   { flexDirection: "row", gap: 3, marginTop: 6 },
+  copyMiniThumb:   { width: 24, height: 30, borderRadius: 3 },
+  copyMiniMore:    { width: 24, height: 30, borderRadius: 3, backgroundColor: c.border, alignItems: "center", justifyContent: "center" },
+  copyMiniMoreText:{ fontSize: 8, color: c.textMid, fontWeight: "700" },
+  copyDeleteBtn:   { padding: 6 },
+  copyDeleteText:  { fontSize: 16, color: c.textDim },
+  copiesFooter:    { padding: 16, gap: 10, borderTopWidth: 1, borderTopColor: c.border },
+  addCopyBtn:      { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 14, alignItems: "center" },
+  addCopyBtnText:  { color: c.accent, fontWeight: "700", fontSize: 14 },
+  analyzeAllBtn:   { backgroundColor: c.accent, borderRadius: 10, padding: 16, alignItems: "center" },
+  analyzeAllBtnText:{ color: "#fff", fontWeight: "700", fontSize: 15 },
+  // Uploading
+  progressText:    { fontSize: 15, fontWeight: "600", color: c.text, marginTop: 20, paddingHorizontal: 32, textAlign: "center" },
+  progressSub:     { fontSize: 12, color: c.textMid, marginTop: 6 },
+  // Results
+  sectionTitle:    { fontSize: 17, fontWeight: "700", color: c.text, marginBottom: 14 },
+  resultCard:      { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 10 },
+  resultRow:       { flexDirection: "row", alignItems: "flex-start" },
+  resultCopyLabel: { fontSize: 11, fontWeight: "700", color: c.textMid, letterSpacing: 0.4, marginBottom: 2 },
+  resultStudentName:{ fontSize: 15, fontWeight: "700", color: c.text },
+  resultMeta:      { fontSize: 11, color: c.textMid, marginTop: 1 },
+  scoreBadge:      { borderWidth: 2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, alignItems: "center", marginLeft: 8 },
+  scoreNum:        { fontSize: 18, fontWeight: "700" },
+  scorePct:        { fontSize: 13, fontWeight: "600", marginTop: 1 },
+  parseWarn:       { fontSize: 11, color: c.warning, marginTop: 8 },
+  feedbackText:    { fontSize: 12, color: c.textMid, marginTop: 8, lineHeight: 18 },
+  resultError:     { fontSize: 13, marginTop: 4 },
+  // Buttons
+  primaryBtn:      { backgroundColor: c.accent, borderRadius: 10, padding: 16, alignItems: "center" },
+  primaryBtnText:  { color: "#fff", fontWeight: "700", fontSize: 14 },
+  secondaryBtn:    { backgroundColor: c.card, borderRadius: 10, padding: 16, alignItems: "center", borderWidth: 1, borderColor: c.border },
+  secondaryBtnText:{ color: c.accent, fontWeight: "700", fontSize: 14 },
+  permText:        { fontSize: 14, color: c.text, textAlign: "center", paddingHorizontal: 32, marginBottom: 20 },
 });

@@ -1,11 +1,13 @@
 /**
- * NewPaperScreen
+ * NewPaperScreen — NEW FLOW
  *
- * Step 1 — DETAILS  : fill test name, subject, class, total marks
- * Step 2 — CAPTURE  : photograph the question paper (optional but recommended)
- * Step 3 — REVIEW   : reorder / remove pages
- * Step 4 — CREATING : upload FormData → create test on server
- *           → navigate to ScanScreen to start scanning student notebooks
+ * Step 1 — CAPTURE    : photograph the question paper pages
+ * Step 2 — REVIEW     : remove / reorder pages
+ * Step 3 — EXTRACTING : auto-fill details via /api/analyzer/extract-paper
+ * Step 4 — DETAILS    : confirm / edit name, subject, class, marks,
+ *                       grading strictness, instructions, teacher name
+ * Step 5 — CREATING   : build PDF → POST /api/analyzer/tests
+ *                     → navigate to ScanScreen
  */
 
 import React, { useState, useRef } from "react";
@@ -21,46 +23,215 @@ import { api } from "../lib/api";
 import { c } from "../lib/theme";
 import { logError } from "../lib/errorLog";
 
-type Step = "details" | "capture" | "review" | "creating";
+type Step = "capture" | "review" | "extracting" | "details" | "creating";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const THUMB = (SCREEN_W - 48) / 3;
 
-export default function NewPaperScreen({ navigation }: any) {
-  const [step, setStep]       = useState<Step>("details");
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef             = useRef<any>(null);
+const LENIENCY_LABELS: Record<number, string> = {
+  1: "Strict",
+  2: "Firm",
+  3: "Balanced",
+  4: "Lenient",
+  5: "Very\nLenient",
+};
 
-  // Form fields
+export default function NewPaperScreen({ navigation }: any) {
+  const [step, setStep]             = useState<Step>("capture");
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef                   = useRef<any>(null);
+
+  // Question-paper photos
+  const [photos, setPhotos]         = useState<PhotoPage[]>([]);
+
+  // Form fields (auto-filled from extraction, editable)
   const [name, setName]             = useState("");
   const [subject, setSubject]       = useState("");
   const [classVal, setClassVal]     = useState("");
   const [totalMarks, setTotalMarks] = useState("");
+  const [leniency, setLeniency]     = useState(3);
+  const [instructions, setInstructions] = useState("");
+  const [teacherName, setTeacherName]   = useState("");
 
-  // Question paper photos
-  const [photos, setPhotos]   = useState<PhotoPage[]>([]);
-  const [progress, setProgress] = useState("");
+  const [progress, setProgress]     = useState("");
 
-  // ─── Step 1: Details ──────────────────────────────────────────────────────
+  // ── CAPTURE ─────────────────────────────────────────────────────────────────
+  if (step === "capture") {
+    if (!permission) return <View style={styles.container} />;
+    if (!permission.granted) {
+      return (
+        <View style={[styles.container, styles.center]}>
+          <Text style={styles.permText}>Camera access is required to scan the question paper.</Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission}>
+            <Text style={styles.primaryBtnText}>Grant Permission</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    const takePhoto = async () => {
+      if (!cameraRef.current) return;
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
+      setPhotos((prev) => [...prev, { uri: photo.uri }]);
+    };
+
+    const pickFromGallery = async () => {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsMultipleSelection: true, quality: 0.9,
+      });
+      if (!result.canceled) {
+        setPhotos((prev) => [...prev, ...result.assets.map((a) => ({ uri: a.uri }))]);
+      }
+    };
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.screenTitle}>Scan Question Paper</Text>
+          {photos.length > 0 ? (
+            <TouchableOpacity onPress={() => setStep("review")}>
+              <Text style={styles.nextText}>Review ({photos.length}) →</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 80 }} />
+          )}
+        </View>
+
+        <Text style={styles.captureHint}>
+          Photograph each page of the question paper — details will be auto-filled
+        </Text>
+
+        <View style={styles.cameraWrapper}>
+          <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+          {photos.length > 0 && (
+            <View style={styles.strip}>
+              {photos.slice(-4).map((p, i) => (
+                <Image key={i} source={{ uri: p.uri }} style={styles.stripThumb} />
+              ))}
+              {photos.length > 4 && (
+                <View style={styles.stripMore}>
+                  <Text style={styles.stripMoreText}>+{photos.length - 4}</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.controls}>
+          <TouchableOpacity style={styles.galleryBtn} onPress={pickFromGallery}>
+            <Text style={styles.galleryIcon}>🖼</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.shutter} onPress={takePhoto}>
+            <View style={styles.shutterInner} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.doneCapture, photos.length === 0 && { opacity: 0.3 }]}
+            onPress={() => photos.length > 0 && setStep("review")}
+          >
+            <Text style={styles.doneCaptureText}>Done{"\n"}({photos.length})</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.skipBtn} onPress={() => setStep("details")}>
+          <Text style={styles.skipBtnText}>Skip — fill details manually</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── REVIEW ───────────────────────────────────────────────────────────────────
+  if (step === "review") {
+    return (
+      <View style={styles.container}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => setStep("capture")}>
+            <Text style={styles.backText}>← Add more</Text>
+          </TouchableOpacity>
+          <Text style={styles.screenTitle}>
+            {photos.length} page{photos.length !== 1 ? "s" : ""}
+          </Text>
+          <TouchableOpacity
+            style={styles.uploadBtnSmall}
+            onPress={() => extractDetails()}
+          >
+            <Text style={styles.uploadBtnSmallText}>Extract →</Text>
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={photos}
+          keyExtractor={(_, i) => i.toString()}
+          numColumns={3}
+          contentContainerStyle={{ padding: 8 }}
+          renderItem={({ item, index }) => (
+            <View style={styles.thumbContainer}>
+              <Image source={{ uri: item.uri }} style={styles.thumb} />
+              <Text style={styles.pageNum}>{index + 1}</Text>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => setPhotos((prev) => prev.filter((_, i) => i !== index))}
+              >
+                <Text style={styles.deleteBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        />
+
+        <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: c.border }}>
+          <Text style={{ fontSize: 11, color: c.textDim, textAlign: "center" }}>
+            Tap ✕ to remove a page · Tap Extract to auto-fill test details
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ── EXTRACTING ───────────────────────────────────────────────────────────────
+  if (step === "extracting") {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={c.accent} />
+        <Text style={styles.progressText}>
+          Reading question paper…{"\n"}Auto-filling details
+        </Text>
+      </View>
+    );
+  }
+
+  // ── DETAILS ──────────────────────────────────────────────────────────────────
   if (step === "details") {
     const valid = name.trim().length > 0 && parseInt(totalMarks) > 0;
+
     return (
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView contentContainerStyle={{ padding: 24 }}>
-          {/* Header */}
+        <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }}>
           <View style={styles.topBar}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
+            <TouchableOpacity
+              onPress={() => photos.length > 0 ? setStep("review") : setStep("capture")}
+            >
               <Text style={styles.backText}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.screenTitle}>New Paper</Text>
+            <Text style={styles.screenTitle}>Test Details</Text>
             <View style={{ width: 48 }} />
           </View>
 
-          <Text style={styles.stepHint}>Step 1 of 2 — Test details</Text>
+          {photos.length > 0 && (
+            <View style={styles.extractedBanner}>
+              <Text style={styles.extractedBannerText}>
+                ✨ Details auto-filled — edit anything below
+              </Text>
+            </View>
+          )}
 
+          {/* ── Core info ── */}
           <Text style={styles.label}>Test Name *</Text>
           <TextInput
             style={styles.input}
@@ -102,163 +273,64 @@ export default function NewPaperScreen({ navigation }: any) {
             returnKeyType="done"
           />
 
-          <TouchableOpacity
-            style={[styles.primaryBtn, !valid && styles.disabledBtn]}
-            onPress={() => {
-              if (!valid) return;
-              setStep("capture");
-            }}
-            disabled={!valid}
-          >
-            <Text style={styles.primaryBtnText}>Next: Scan Question Paper →</Text>
-          </TouchableOpacity>
+          <Text style={styles.label}>Teacher Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Mr. Sharma"
+            placeholderTextColor={c.textDim}
+            value={teacherName}
+            onChangeText={setTeacherName}
+            returnKeyType="next"
+          />
+
+          {/* ── Grading strictness ── */}
+          <Text style={styles.label}>Grading Strictness</Text>
+          <View style={styles.leniencyRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <TouchableOpacity
+                key={n}
+                style={[styles.leniencyBtn, leniency === n && styles.leniencyBtnActive]}
+                onPress={() => setLeniency(n)}
+              >
+                <Text style={[styles.leniencyNum, leniency === n && styles.leniencyNumActive]}>
+                  {n}
+                </Text>
+                <Text style={[styles.leniencyLabel, leniency === n && styles.leniencyLabelActive]}>
+                  {LENIENCY_LABELS[n]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.leniencyHint}>
+            1 = Exact answers required · 5 = Partial credit freely given
+          </Text>
+
+          {/* ── Grading instructions ── */}
+          <Text style={styles.label}>Grading Instructions</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="e.g. Award marks for correct method even if the final answer is wrong"
+            placeholderTextColor={c.textDim}
+            value={instructions}
+            onChangeText={setInstructions}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
 
           <TouchableOpacity
-            style={styles.skipBtn}
-            onPress={async () => {
-              if (!valid) return;
-              // Skip question paper — create test directly
-              await createTest([]);
-            }}
+            style={[styles.primaryBtn, !valid && styles.disabledBtn]}
+            onPress={() => valid && createTest(photos)}
             disabled={!valid}
           >
-            <Text style={[styles.skipBtnText, !valid && { opacity: 0.3 }]}>
-              Skip — create without question paper
-            </Text>
+            <Text style={styles.primaryBtnText}>Create Test →</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     );
   }
 
-  // ─── Step 2: Capture question paper ──────────────────────────────────────
-  if (step === "capture") {
-    if (!permission) return <View style={styles.container} />;
-    if (!permission.granted) {
-      return (
-        <View style={[styles.container, styles.center]}>
-          <Text style={styles.permText}>Camera access is required to scan the question paper.</Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission}>
-            <Text style={styles.primaryBtnText}>Grant Permission</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    const takePhoto = async () => {
-      if (!cameraRef.current) return;
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
-      setPhotos((prev) => [...prev, { uri: photo.uri }]);
-    };
-
-    const pickFromGallery = async () => {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsMultipleSelection: true, quality: 0.9,
-      });
-      if (!result.canceled) {
-        setPhotos((prev) => [...prev, ...result.assets.map((a) => ({ uri: a.uri }))]);
-      }
-    };
-
-    return (
-      <View style={styles.container}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => setStep("details")}>
-            <Text style={styles.backText}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.screenTitle}>Question Paper</Text>
-          {photos.length > 0 ? (
-            <TouchableOpacity onPress={() => setStep("review")}>
-              <Text style={styles.nextText}>Review ({photos.length}) →</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 80 }} />
-          )}
-        </View>
-
-        <Text style={styles.captureHint}>Photograph each page of the question paper</Text>
-
-        <View style={styles.cameraWrapper}>
-          <CameraView ref={cameraRef} style={styles.camera} facing="back" />
-          {photos.length > 0 && (
-            <View style={styles.strip}>
-              {photos.slice(-4).map((p, i) => (
-                <Image key={i} source={{ uri: p.uri }} style={styles.stripThumb} />
-              ))}
-              {photos.length > 4 && (
-                <View style={styles.stripMore}>
-                  <Text style={styles.stripMoreText}>+{photos.length - 4}</Text>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.controls}>
-          <TouchableOpacity style={styles.galleryBtn} onPress={pickFromGallery}>
-            <Text style={styles.galleryIcon}>🖼</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.shutter} onPress={takePhoto}>
-            <View style={styles.shutterInner} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.doneCapture, photos.length === 0 && { opacity: 0.3 }]}
-            onPress={() => photos.length > 0 && setStep("review")}
-          >
-            <Text style={styles.doneCaptureText}>Done{"\n"}({photos.length})</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ─── Step 3: Review question paper pages ─────────────────────────────────
-  if (step === "review") {
-    return (
-      <View style={styles.container}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => setStep("capture")}>
-            <Text style={styles.backText}>← Add more</Text>
-          </TouchableOpacity>
-          <Text style={styles.screenTitle}>{photos.length} page{photos.length !== 1 ? "s" : ""}</Text>
-          <TouchableOpacity
-            style={styles.uploadBtnSmall}
-            onPress={() => createTest(photos)}
-          >
-            <Text style={styles.uploadBtnSmallText}>Create →</Text>
-          </TouchableOpacity>
-        </View>
-
-        <FlatList
-          data={photos}
-          keyExtractor={(_, i) => i.toString()}
-          numColumns={3}
-          contentContainerStyle={{ padding: 8 }}
-          renderItem={({ item, index }) => (
-            <View style={styles.thumbContainer}>
-              <Image source={{ uri: item.uri }} style={styles.thumb} />
-              <Text style={styles.pageNum}>{index + 1}</Text>
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => setPhotos((prev) => prev.filter((_, i) => i !== index))}
-              >
-                <Text style={styles.deleteBtnText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        />
-        <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: c.border }}>
-          <Text style={{ fontSize: 11, color: c.textDim, textAlign: "center" }}>
-            Tap ✕ to remove a page. These are the question paper pages.
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  // ─── Step 4: Creating ─────────────────────────────────────────────────────
+  // ── CREATING ─────────────────────────────────────────────────────────────────
   return (
     <View style={[styles.container, styles.center]}>
       <ActivityIndicator size="large" color={c.accent} />
@@ -266,84 +338,127 @@ export default function NewPaperScreen({ navigation }: any) {
     </View>
   );
 
-  // ─── Create test logic ────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Extract details from scanned paper
+  // ─────────────────────────────────────────────────────────────────────────────
+  async function extractDetails() {
+    setStep("extracting");
+    try {
+      const pdfUri = await photosToPDF(photos);
+      const fd = new FormData();
+      fd.append("questionPaper", {
+        uri: pdfUri,
+        name: `qpaper-${Date.now()}.pdf`,
+        type: "application/pdf",
+      } as any);
+      const result = await api.extractPaper(fd);
+      if (result.name)         setName(result.name);
+      if (result.subject)      setSubject(result.subject);
+      if (result.totalMarks)   setTotalMarks(String(result.totalMarks));
+      if (result.instructions) setInstructions(result.instructions);
+    } catch (e: any) {
+      logError(e.message, "NewPaperScreen:extract");
+      Alert.alert(
+        "Auto-fill failed",
+        "Couldn't read the paper — please fill in the details manually.",
+        [{ text: "OK" }],
+      );
+    }
+    setStep("details");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Create test on server
+  // ─────────────────────────────────────────────────────────────────────────────
   async function createTest(qPhotos: PhotoPage[]) {
     setStep("creating");
     try {
       const formData = new FormData();
-      formData.append("name", name.trim());
-      formData.append("subject", subject.trim());
-      formData.append("class", classVal.trim());
+      formData.append("name",       name.trim());
+      formData.append("subject",    subject.trim());
+      formData.append("class",      classVal.trim());
       formData.append("totalMarks", totalMarks.trim());
-      formData.append("leniency", "3");
+      formData.append("leniency",   String(leniency));
+      if (instructions.trim()) formData.append("instructions", instructions.trim());
+      if (teacherName.trim())  formData.append("teacherName",  teacherName.trim());
 
       if (qPhotos.length > 0) {
         setProgress("Preparing question paper PDF…");
         const pdfUri = await photosToPDF(qPhotos, (cur, total) => {
-          setProgress(`Processing question paper page ${cur}/${total}…`);
+          setProgress(`Processing page ${cur}/${total}…`);
         });
         formData.append("questionPaper", {
-          uri: pdfUri,
+          uri:  pdfUri,
           name: `question-paper-${Date.now()}.pdf`,
           type: "application/pdf",
         } as any);
       }
 
-      setProgress("Creating test on server…");
+      setProgress("Creating test…");
       const { test } = await api.createTest(formData);
-
-      // Navigate directly to scan screen to start scanning notebooks
       navigation.replace("Scan", { test, freshlyCreated: true });
     } catch (e: any) {
-      logError(e.message, "NewPaperScreen");
+      logError(e.message, "NewPaperScreen:create");
       Alert.alert("Failed to create test", e.message, [
-        { text: "Try again", onPress: () => setStep("review") },
+        { text: "Try again",    onPress: () => setStep("details") },
         { text: "Back to home", onPress: () => navigation.goBack() },
       ]);
     }
   }
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: c.bg },
-  center:             { alignItems: "center", justifyContent: "center" },
-  topBar:             { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, paddingTop: 52 },
-  screenTitle:        { fontSize: 16, fontWeight: "700", color: c.text },
-  backText:           { fontSize: 14, color: c.accent, minWidth: 60 },
-  nextText:           { fontSize: 14, color: c.accent, fontWeight: "600" },
-  stepHint:           { fontSize: 12, color: c.textDim, marginBottom: 24, marginTop: 4 },
-  label:              { fontSize: 12, fontWeight: "600", color: c.textMid, marginBottom: 6, marginTop: 16, letterSpacing: 0.3 },
-  input:              { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 14, fontSize: 14, color: c.text, fontFamily: "System" },
-  primaryBtn:         { backgroundColor: c.accent, borderRadius: 10, padding: 16, alignItems: "center", marginTop: 28 },
-  primaryBtnText:     { color: "#fff", fontWeight: "700", fontSize: 15 },
-  disabledBtn:        { opacity: 0.35 },
-  skipBtn:            { alignItems: "center", paddingVertical: 16 },
-  skipBtnText:        { fontSize: 13, color: c.textDim, textDecorationLine: "underline" },
+  container:           { flex: 1, backgroundColor: c.bg },
+  center:              { alignItems: "center", justifyContent: "center" },
+  topBar:              { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, paddingTop: 52 },
+  screenTitle:         { fontSize: 16, fontWeight: "700", color: c.text },
+  backText:            { fontSize: 14, color: c.accent, minWidth: 60 },
+  nextText:            { fontSize: 14, color: c.accent, fontWeight: "600" },
+  label:               { fontSize: 12, fontWeight: "600", color: c.textMid, marginBottom: 6, marginTop: 16, letterSpacing: 0.3 },
+  input:               { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 14, fontSize: 14, color: c.text },
+  textArea:            { minHeight: 88, paddingTop: 12 },
+  primaryBtn:          { backgroundColor: c.accent, borderRadius: 10, padding: 16, alignItems: "center", marginTop: 28 },
+  primaryBtnText:      { color: "#fff", fontWeight: "700", fontSize: 15 },
+  disabledBtn:         { opacity: 0.35 },
+  skipBtn:             { alignItems: "center", paddingVertical: 14, paddingHorizontal: 24 },
+  skipBtnText:         { fontSize: 13, color: c.textDim, textDecorationLine: "underline" },
+  // Extracted banner
+  extractedBanner:     { backgroundColor: `${c.accent}1A`, borderRadius: 8, padding: 10, marginBottom: 4 },
+  extractedBannerText: { fontSize: 12, color: c.accent, fontWeight: "600", textAlign: "center" },
   // Camera
-  captureHint:        { fontSize: 12, color: c.textDim, textAlign: "center", paddingBottom: 8 },
-  cameraWrapper:      { flex: 1, position: "relative" },
-  camera:             { flex: 1 },
-  strip:              { position: "absolute", bottom: 8, left: 8, flexDirection: "row", gap: 4, zIndex: 10 },
-  stripThumb:         { width: 44, height: 56, borderRadius: 4, borderWidth: 1, borderColor: "#fff" },
-  stripMore:          { width: 44, height: 56, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
-  stripMoreText:      { color: "#fff", fontSize: 12, fontWeight: "700" },
-  controls:           { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 24, paddingHorizontal: 32, backgroundColor: c.bg },
-  galleryBtn:         { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
-  galleryIcon:        { fontSize: 28 },
-  shutter:            { width: 72, height: 72, borderRadius: 36, borderWidth: 4, borderColor: "#fff", alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
-  shutterInner:       { width: 58, height: 58, borderRadius: 29, backgroundColor: "#fff" },
-  doneCapture:        { width: 60, height: 50, backgroundColor: c.accent, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  doneCaptureText:    { color: "#fff", fontSize: 11, fontWeight: "700", textAlign: "center" },
+  captureHint:         { fontSize: 12, color: c.textDim, textAlign: "center", paddingHorizontal: 24, paddingBottom: 8 },
+  cameraWrapper:       { flex: 1, position: "relative" },
+  camera:              { flex: 1 },
+  strip:               { position: "absolute", bottom: 8, left: 8, flexDirection: "row", gap: 4, zIndex: 10 },
+  stripThumb:          { width: 44, height: 56, borderRadius: 4, borderWidth: 1, borderColor: "#fff" },
+  stripMore:           { width: 44, height: 56, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  stripMoreText:       { color: "#fff", fontSize: 12, fontWeight: "700" },
+  controls:            { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 24, paddingHorizontal: 32, backgroundColor: c.bg },
+  galleryBtn:          { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
+  galleryIcon:         { fontSize: 28 },
+  shutter:             { width: 72, height: 72, borderRadius: 36, borderWidth: 4, borderColor: "#fff", alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
+  shutterInner:        { width: 58, height: 58, borderRadius: 29, backgroundColor: "#fff" },
+  doneCapture:         { width: 60, height: 50, backgroundColor: c.accent, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  doneCaptureText:     { color: "#fff", fontSize: 11, fontWeight: "700", textAlign: "center" },
   // Review
-  uploadBtnSmall:     { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  uploadBtnSmallText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  thumbContainer:     { width: THUMB, height: THUMB * 1.3, margin: 4, position: "relative" },
-  thumb:              { width: "100%", height: "100%", borderRadius: 6 },
-  pageNum:            { position: "absolute", bottom: 4, left: 6, fontSize: 11, color: "#fff", fontWeight: "700", textShadowColor: "#000", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-  deleteBtn:          { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
-  deleteBtnText:      { color: "#fff", fontSize: 11, fontWeight: "700" },
+  uploadBtnSmall:      { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  uploadBtnSmallText:  { color: "#fff", fontWeight: "700", fontSize: 13 },
+  thumbContainer:      { width: THUMB, height: THUMB * 1.3, margin: 4, position: "relative" },
+  thumb:               { width: "100%", height: "100%", borderRadius: 6 },
+  pageNum:             { position: "absolute", bottom: 4, left: 6, fontSize: 11, color: "#fff", fontWeight: "700", textShadowColor: "#000", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  deleteBtn:           { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
+  deleteBtnText:       { color: "#fff", fontSize: 11, fontWeight: "700" },
+  // Leniency picker
+  leniencyRow:         { flexDirection: "row", gap: 6, marginTop: 4 },
+  leniencyBtn:         { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
+  leniencyBtnActive:   { backgroundColor: c.accent, borderColor: c.accent },
+  leniencyNum:         { fontSize: 16, fontWeight: "700", color: c.textMid },
+  leniencyNumActive:   { color: "#fff" },
+  leniencyLabel:       { fontSize: 9, color: c.textDim, marginTop: 2, textAlign: "center" },
+  leniencyLabelActive: { color: "rgba(255,255,255,0.85)" },
+  leniencyHint:        { fontSize: 10, color: c.textDim, marginTop: 6, lineHeight: 14 },
   // Creating
-  progressText:       { fontSize: 14, fontWeight: "600", color: c.text, marginTop: 20, paddingHorizontal: 32, textAlign: "center" },
-  // Permissions
-  permText:           { fontSize: 14, color: c.text, textAlign: "center", paddingHorizontal: 32, marginBottom: 20 },
+  progressText:        { fontSize: 14, fontWeight: "600", color: c.text, marginTop: 20, paddingHorizontal: 32, textAlign: "center", lineHeight: 22 },
+  permText:            { fontSize: 14, color: c.text, textAlign: "center", paddingHorizontal: 32, marginBottom: 20 },
 });
