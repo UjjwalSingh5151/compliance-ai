@@ -4,6 +4,7 @@ import {
   LENIENCY_PROMPTS, fileToClaudeContent, uploadToStorage,
   getRequestUser, getUserSchool, getPDFPageCount, deductCredits,
 } from "../lib/shared.js";
+import { traceGrading, scoreGrading } from "../lib/langfuse.js";
 
 const MAX_PDF_PAGES = 80;   // Claude degrades above ~100 pages; 80 is safe
 const MAX_FILE_MB   = 15;   // hard cap per file
@@ -225,12 +226,19 @@ IMPORTANT: Your entire response must be a single valid JSON object. No markdown,
   "overall_feedback": "2 sentences max."
 }`;
 
-        const response = await client.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8000,
-          messages: [
-            { role: "user", content: [contentBlock, { type: "text", text: analyzePrompt }] },
-          ],
+        const { response, traceId } = await traceGrading({
+          testId,
+          schoolId,
+          fileName:  file.originalname,
+          model:     "claude-sonnet-4-6",
+          prompt:    analyzePrompt,
+          call: () => client.messages.create({
+            model:     "claude-sonnet-4-6",
+            max_tokens: 8000,
+            messages: [
+              { role: "user", content: [contentBlock, { type: "text", text: analyzePrompt }] },
+            ],
+          }),
         });
 
         const rawText = response.content[0]?.text || "";
@@ -239,6 +247,7 @@ IMPORTANT: Your entire response must be a single valid JSON object. No markdown,
         }
 
         let analysis = extractAnalysis(rawText, response.stop_reason, totalMarks);
+        await scoreGrading(traceId, analysis, totalMarks);
 
         if (!analysis) {
           console.error(`[analyze] parse failed for ${file.originalname}. stop_reason=${response.stop_reason} snippet=${rawText.slice(0, 200)}`);

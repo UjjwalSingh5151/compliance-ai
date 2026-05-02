@@ -258,6 +258,88 @@ To rebrand:
 
 ---
 
+## AI Observability (Langfuse)
+
+**File:** `backend/lib/langfuse.js`
+
+- Traces every Claude grading call: model, prompt, tokens used, stop reason
+- Scores each trace: `parse_success` (1/0) + `marks_sum_consistent` (1/0)
+- Traces revision notes and practice question generation separately
+- Gracefully disabled when `LANGFUSE_PUBLIC_KEY` is not set (no-op in local dev / staging)
+
+### Langfuse env vars (Render)
+```
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com   # default, can omit
+```
+
+Get keys at: https://cloud.langfuse.com → Project Settings → API Keys
+
+### What you see in Langfuse dashboard
+- All grading traces with token costs per sheet
+- `parse_success` score → identify prompts that fail to return valid JSON
+- `marks_sum_consistent` score → identify hallucinated totals
+- Filter by `schoolId` metadata to see per-school usage
+- Compare prompt versions after changes (Langfuse prompt versioning)
+
+---
+
+## Testing
+
+**Framework:** Vitest (ESM-native, no babel config needed)
+
+```bash
+cd backend && npm test           # run once
+cd backend && npm run test:watch # watch mode
+```
+
+**Test files:**
+| File | Covers |
+|---|---|
+| `backend/tests/setup.js` | Global mocks (Langfuse no-op, env vars) |
+| `backend/tests/analyzer.test.js` | Tests, share endpoint, SSE grading stream |
+| `backend/tests/student.test.js` | Student me/results, notes generation, practice scoring |
+
+All tests mock the Claude client and Supabase — no real API calls in CI.
+
+---
+
+## Staging Environment ($0/month)
+
+| Resource | What to use | Cost |
+|---|---|---|
+| Backend | Render free tier (2nd free service) | $0 |
+| Database | Supabase free project #2 | $0 |
+| Web portal | Vercel preview URL (auto-created per PR) | $0 |
+| Mobile | EAS `staging` build profile | $0 |
+
+**Setup:**
+1. Create 2nd Supabase project → run same migrations
+2. Create 2nd Render service → set vars from `backend/.env.staging.example`
+3. Set `VITE_API_URL` in Vercel to point at staging Render URL for preview deploys
+4. Push to `staging` branch → CI runs tests → deploys to staging Render
+
+---
+
+## CI/CD Pipeline
+
+**File:** `.github/workflows/ci.yml`
+
+| Trigger | Jobs run |
+|---|---|
+| Push / PR to any branch | backend tests + web build check |
+| Push to `staging` | + deploy to Render staging service |
+| Push to `main` | + deploy to Render production service |
+
+**GitHub Secrets needed:**
+```
+RENDER_STAGING_DEPLOY_HOOK   # Render dashboard → Service → Settings → Deploy Hook
+RENDER_PROD_DEPLOY_HOOK      # same for production service
+```
+
+---
+
 ## Pending / TODO
 
 - [ ] Fill SHA256 in `assetlinks.json` → run `eas credentials --platform android`
@@ -269,6 +351,8 @@ To rebrand:
 - [ ] Play Store submission
 - [ ] Turn on Vercel Analytics (both projects)
 - [ ] Set storage expiry policy in Supabase (answer sheets accumulate)
+- [ ] Add GitHub Secrets RENDER_STAGING_DEPLOY_HOOK + RENDER_PROD_DEPLOY_HOOK
+- [ ] Set LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY on Render (both services)
 
 ---
 
@@ -289,6 +373,9 @@ cd student-analyzer && npm run dev
 
 # Backend — local dev
 cd backend && node server.js
+
+# Backend — run tests
+cd backend && npm test
 
 # Landing — just open in browser
 landing/index.html

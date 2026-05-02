@@ -1,0 +1,95 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. Backend tests ──────────────────────────────────────────────────────────
+  backend-test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package.json
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: backend
+
+      - name: Run backend tests
+        run: npm test
+        working-directory: backend
+        env:
+          # These are safe placeholder values for test mocks
+          ANTHROPIC_API_KEY: sk-ant-test
+          ADMIN_USER_ID: test-admin-id
+
+  # ── 2. Web portal build check ─────────────────────────────────────────────────
+  web-build:
+    name: Web portal build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: student-analyzer/package.json
+
+      - name: Install web deps
+        run: npm ci
+        working-directory: student-analyzer
+
+      - name: Build web portal
+        run: npm run build
+        working-directory: student-analyzer
+        env:
+          VITE_API_URL: https://edugrade-yd4h.onrender.com
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder
+
+  # ── 3. Deploy to staging (Render) — staging branch only ──────────────────────
+  deploy-staging:
+    name: Deploy → staging
+    needs: [backend-test, web-build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
+
+    steps:
+      - name: Trigger Render staging deploy
+        run: |
+          curl -s -X POST "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" \
+            -H "Content-Type: application/json" \
+            --fail-with-body
+        # Add RENDER_STAGING_DEPLOY_HOOK in GitHub → Settings → Secrets
+
+  # ── 4. Deploy to production (Render) — main branch only ──────────────────────
+  deploy-production:
+    name: Deploy → production
+    needs: [backend-test, web-build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Trigger Render production deploy
+        run: |
+          curl -s -X POST "${{ secrets.RENDER_PROD_DEPLOY_HOOK }}" \
+            -H "Content-Type: application/json" \
+            --fail-with-body
+        # Add RENDER_PROD_DEPLOY_HOOK in GitHub → Settings → Secrets

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { supabaseAdmin, client, getRequestUser } from "../lib/shared.js";
+import { traceStudentGen } from "../lib/langfuse.js";
 
 const router = Router();
 
@@ -87,9 +88,16 @@ Create concise revision notes that:
 
 Write directly to the student using "you". Use clear headings. Be specific, not generic.`;
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6", max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
+    const { response } = await traceStudentGen({
+      type:      "revision-notes",
+      resultId:  req.params.id,
+      studentId: student.id,
+      model:     "claude-sonnet-4-6",
+      prompt,
+      call: () => client.messages.create({
+        model: "claude-sonnet-4-6", max_tokens: 2000,
+        messages: [{ role: "user", content: prompt }],
+      }),
     });
     const notes = response.content[0].text;
     await supabaseAdmin.from("analyzer_results").update({ revision_notes: notes }).eq("id", req.params.id);
@@ -140,9 +148,16 @@ Respond ONLY with valid JSON:
   ]
 }`;
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6", max_tokens: 3000,
-      messages: [{ role: "user", content: prompt }],
+    const { response } = await traceStudentGen({
+      type:      "practice-questions",
+      resultId:  req.params.id,
+      studentId: student.id,
+      model:     "claude-sonnet-4-6",
+      prompt,
+      call: () => client.messages.create({
+        model: "claude-sonnet-4-6", max_tokens: 3000,
+        messages: [{ role: "user", content: prompt }],
+      }),
     });
     let questions;
     try {
