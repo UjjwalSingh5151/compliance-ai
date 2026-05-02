@@ -115,10 +115,10 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
 
   // Build tab list
   const tabs: { id: Tab; label: string }[] = [
-    { id: "analysis",  label: "📊 Analysis" },
-    ...(hasSheet ? [{ id: "sheet" as Tab, label: "📄 Sheet" }] : []),
-    { id: "notes",    label: "📝 Notes" },
-    { id: "practice", label: "🎯 Practice" },
+    { id: "analysis",  label: "Analysis" },
+    ...(hasSheet ? [{ id: "sheet" as Tab, label: "Sheet" }] : []),
+    { id: "notes",    label: "Notes" },
+    { id: "practice", label: "Practice" },
   ];
 
   return (
@@ -224,7 +224,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
             /* Quiz screen */
             <>
               <View style={styles.quizHeader}>
-                <Text style={styles.quizTitle}>🎯 Practice Quiz</Text>
+                <Text style={styles.quizTitle}>Practice Quiz</Text>
                 <Text style={styles.quizSub}>
                   {Object.keys(answers).length}/{questions.length} answered
                 </Text>

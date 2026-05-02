@@ -1,20 +1,23 @@
 # EduGrade — Complete Frontend Flows
-> Import this into Figma using the "Figma AI" plugin or manually map each screen.
-> Recommended tool: **Figma** (see Design Software section at bottom)
+> Use this file as a reference for Figma design or any redesign work.
+> Last updated: 2026-05-02
 
 ---
 
 ## Architecture Overview
 
 ```
-www.kelzo.ai          → Landing page (static HTML)
-app.kelzo.ai          → School web portal (React/Vite)
+www.kelzo.ai          → Landing page (static HTML, Vercel)
+app.kelzo.ai          → School web portal (React/Vite, Vercel)
+edugrade-yd4h.onrender.com → Backend API (Node/Express, Render)
 mobile app (Android)  → Teachers + Students (Expo/React Native)
 ```
 
 ---
 
 ## 1. LANDING PAGE  (www.kelzo.ai)
+
+**File:** `landing/index.html`
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -27,21 +30,23 @@ mobile app (Android)  → Teachers + Students (Expo/React Native)
 │  STATS BAR: ~30s/sheet | Q-by-Q | Any sub   │
 ├─────────────────────────────────────────────┤
 │  FEATURES GRID (2×3)                         │
-│  📸 Scan  🧠 AI grading  📊 Analytics       │
-│  📲 Share  🏫 School mgmt  📄 Paper gen     │
+│  Scan  AI grading  Analytics                │
+│  Share  School mgmt  Paper gen              │
 ├─────────────────────────────────────────────┤
 │  WHO IS IT FOR (3 cards)                     │
-│  🏫 Schools (web) | 👨‍🏫 Teachers (app) | 👨‍🎓 Students │
+│  Schools (web) | Teachers (app) | Students  │
 ├─────────────────────────────────────────────┤
 │  CTA BAND: Sign up free + Talk to us        │
 ├─────────────────────────────────────────────┤
-│  Footer: School Login | support@ | © Kelzo   │
+│  Footer: School Login | support@ | © Kelzo  │
 └─────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 2. SCHOOL WEB PORTAL  (app.kelzo.ai)
+
+**Files:** `student-analyzer/src/`
 
 ### 2.1 Auth Flow
 ```
@@ -96,46 +101,55 @@ Dashboard → Tests list
 
 ### 2.4 Share view (public, no login)
 ```
-kelzo.ai/share/{token}  OR  app.kelzo.ai#/share/{token}
+app.kelzo.ai/share/{token}
   └── ShareView
         ├── Student name + score + test name
         ├── Q-by-Q feedback (read-only)
         └── "Download" / "View full" CTA
 ```
 
-### 2.5 Student Portal (web, no login)
+### 2.5 Student Portal (web, email login)
 ```
 StudentPortal
-  └── Enter roll no / name → search results
+  └── Student sees their own results list
         └── StudentResultView
-              └── Same as ResultDetail (read-only, no teacher notes)
+              ├── Score + test info
+              ├── Q-by-Q analysis (read-only)
+              ├── Revision notes (generate / view)
+              └── Practice questions (MCQ quiz)
 ```
 
 ---
 
 ## 3. MOBILE APP  (Teachers + Students)
 
-### 3.1 Auth
+**Files:** `mobile/src/`
+
+### 3.1 Auth + Role Detection
 ```
 App launch
-  ├── Loading (check Supabase session)
+  ├── Loading spinner (check Supabase session)
   ├── Not logged in → LoginScreen
-  │     └── Email + Password → HomeScreen
-  └── Logged in → HomeScreen
+  └── Logged in → Role detection
+        ├── getMySchool() → approved → Teacher flow (HomeScreen)
+        ├── getStudentMe() → found → Student flow (StudentHomeScreen)
+        └── Neither → UnknownRoleScreen (sign out prompt)
 ```
 
-### 3.2 HomeScreen
+### 3.2 TEACHER FLOW
+
+#### HomeScreen
 ```
 HomeScreen
-  ├── Header: Logo | Credits badge | ⚠ Error count | Sign out
-  ├── [📄 New Paper]          → NewPaperScreen
-  ├── [📚 Add Notebook]       → SelectTestScreen
-  ├── [📂 View Corrected Copies] → CorrectedCopiesScreen
+  ├── Header: Logo | Credits badge | Error count badge | Sign out
+  ├── [New Paper]          → NewPaperScreen
+  ├── [Add Notebook]       → SelectTestScreen
+  ├── [View Corrected Copies] → CorrectedCopiesScreen
   └── Recent Papers list
         └── Tap paper → TestResultsScreen
 ```
 
-### 3.3 New Paper flow
+#### New Paper flow
 ```
 NewPaperScreen
   Step 1 — Details
@@ -143,56 +157,53 @@ NewPaperScreen
     ├── Subject
     ├── Class / Section
     ├── Total marks (required)
-    ├── [Next: Scan Question Paper →]
-    └── [Skip — create without question paper]
+    └── [Next: Scan Question Paper] or [Skip]
 
   Step 2 — Capture question paper
     ├── Camera viewfinder
     ├── Gallery picker
-    ├── Photo strip (last 4 thumbnails)
-    └── Done (N) →
+    └── Done (N pages captured)
 
   Step 3 — Review pages
-    ├── 3-column grid of thumbnails (✕ to remove)
-    └── [Create →]
+    ├── Grid of thumbnails (tap X to remove)
+    └── [Create]
 
   Step 4 — Creating (spinner)
     └── Success → ScanScreen (for first notebook)
 ```
 
-### 3.4 ScanScreen (notebook scanning)
+#### ScanScreen (notebook scanning)
 ```
 ScanScreen (receives: test object)
-  ├── Header: ← Home | Test name | Review (N) →
-  ├── [✅ Test created! banner] (if freshly created)
+  ├── Header: Back | Test name | Review (N)
+  ├── [Test created! banner] (if freshly created)
   ├── Camera
   ├── Photo strip (last 5 thumbnails)
-  ├── Controls: 🖼 Gallery | ⬤ Shutter | Done(N)
-  └── Done → ReviewStep → Analyze →
-        ├── Uploading (spinner + progress text)
+  ├── Controls: Gallery | Shutter | Done(N)
+  └── Done → ReviewStep → Analyze
+        ├── Uploading (spinner + progress)
         └── ResultView
               ├── Score: marks/total + %
               ├── Student name + roll
               ├── Feedback + Strengths + Improvements
-              ├── [📷 Scan Next Notebook]
-              └── [← Back to Home]
+              ├── [Scan Next Notebook]
+              └── [Back to Home]
 ```
 
-### 3.5 TestResultsScreen
+#### TestResultsScreen
 ```
 TestResultsScreen (receives: test)
-  ├── Header: ← Back | Test name + subject | [📷 Scan]
+  ├── Header: Back | Test name + subject | [Scan]
   ├── Stats bar: N scanned | Avg% | Total marks
   └── Results list
         └── Tap result → ResultDetailScreen
 ```
 
-### 3.6 ResultDetailScreen
+#### ResultDetailScreen (teacher view)
 ```
 ResultDetailScreen (receives: resultId)
-  ├── Header: ← Back | Test name | [Save comments]
-  ├── Tab bar (if answer sheet exists):
-  │     [Answer Sheet] [Analysis]
+  ├── Header: Back | Test name | [Save comments]
+  ├── Tab bar: [Answer Sheet] [Analysis]
   │
   ├── Answer Sheet tab
   │     └── WebView (PDF via Google Docs Viewer / image)
@@ -200,75 +211,153 @@ ResultDetailScreen (receives: resultId)
   └── Analysis tab
         ├── Score ring + marks/total
         ├── Student name + roll + class chips
-        ├── [📄 View Answer Sheet] (switches tab)
-        ├── Overall Feedback section
-        │     ├── Feedback text
-        │     ├── ✓ Strengths (green)
-        │     └── → Improvements (amber)
+        ├── [View Answer Sheet] button
+        ├── Overall Feedback
+        ├── Strengths (green) + Improvements (amber)
         └── Q-by-Q Breakdown (expandable cards)
-              └── Each card (collapsed): Q{n} | feedback preview | marks
-                  Each card (expanded):
+              └── Each card (expanded):
                     ├── QUESTION text
                     ├── STUDENT'S ANSWER
-                    ├── EXPECTED ANSWER + reasoning
+                    ├── EXPECTED ANSWER
                     ├── MARKS AWARDED
                     ├── FEEDBACK TO STUDENT
                     └── TEACHER'S NOTE (editable)
 ```
 
-### 3.7 CorrectedCopiesScreen
+#### CorrectedCopiesScreen
 ```
 CorrectedCopiesScreen
-  ├── Header: ← Back | "Corrected Copies" | N sheets · M papers
+  ├── Header: Back | "Corrected Copies" | N sheets · M papers
   └── Collapsible class sections
-        └── 🏫 Class 10A  (tap to expand)
-              └── ◆ Mathematics
+        └── Class 10A (tap to expand)
+              └── Mathematics
                     ├── Chapter 5 Test (5 sheets) →
-                    └── Unit Test 2 (3 sheets)   →
-                  ◆ Science
-                    └── Physics Test (2 sheets)  →
+                    └── Unit Test 2 (3 sheets) →
+                  Science
+                    └── Physics Test (2 sheets) →
               [each paper → TestResultsScreen]
 ```
 
-### 3.8 SelectTestScreen
+#### SelectTestScreen
 ```
 SelectTestScreen
-  ├── Header: ← Back | "Select Paper"
+  ├── Header: Back | "Select Paper"
   ├── Hint: "Tap a paper to scan notebooks for it"
   └── Tests list → tap → ScanScreen
 ```
 
 ---
 
-## 4. DEEP LINK FLOW (share link)
+### 3.3 STUDENT FLOW
 
+#### StudentHomeScreen
 ```
-Teacher shares: https://app.kelzo.ai/share/{token}
-  └── Recipient taps link
-        ├── App installed? → Open in app → StudentResultView
-        └── No app?       → Open in browser → ShareView (web)
+StudentHomeScreen
+  ├── Header: Logo | Student name + Roll no | Sign out
+  ├── Stats row: Tests taken | Average score
+  └── Results grouped by SUBJECT (section headers)
+        └── [Subject: CHEMISTRY]
+              └── Test card: "Solutions Test"  May 1  82%
+                    ├── [Results]   → StudentResultDetail (Analysis tab)
+                    ├── [Notes]     → StudentResultDetail (Notes tab)
+                    └── [Practice]  → StudentResultDetail (Practice tab)
 ```
-*Deep linking requires: Expo Linking config + Universal Links setup*
+
+#### StudentResultDetailScreen
+```
+StudentResultDetailScreen (receives: resultId, initialTab)
+  ├── Header: Back | Test name | Subject
+  ├── Tab bar: Analysis | Sheet | Notes | Practice
+  │
+  ├── Analysis tab
+  │     ├── Score ring (% + marks/total)
+  │     ├── Student name + roll + class
+  │     ├── [View Answer Sheet] button (if exists)
+  │     ├── Overall feedback text
+  │     ├── Strengths (green bullets)
+  │     ├── Areas to Improve (amber bullets)
+  │     ├── Q-by-Q breakdown (expandable cards)
+  │     │     └── Each card: Q text | Your answer | Expected | Feedback
+  │     └── Quick access: [Generate Notes] [Practice Quiz]
+  │
+  ├── Sheet tab (if answer sheet exists)
+  │     └── WebView — Google Docs Viewer for PDF, direct for images
+  │
+  ├── Notes tab
+  │     ├── Empty state → [Generate Revision Notes] button
+  │     ├── Loading state → "Claude is writing your notes…"
+  │     └── Notes view → scrollable text + [Regenerate]
+  │
+  └── Practice tab
+        ├── Empty state → [Generate Practice Questions] button
+        ├── Loading state → "Claude is generating 8 questions…"
+        ├── Quiz view (8 MCQ questions)
+        │     ├── Each question: text + A/B/C/D radio options
+        │     ├── Progress: "X/8 answered"
+        │     ├── [Submit] button (disabled until all answered)
+        │     └── [New Questions] button
+        └── Results view (after submit)
+              ├── Score banner: X/8 correct + %
+              ├── Per-question result: correct/wrong + explanation
+              └── [Try New Questions]
+```
 
 ---
 
-## Design Software Recommendation
+## 4. SHARE LINK FLOW
 
-### Use: **Figma**
-**Why:**
-- Industry standard — designers and devs use the same file
-- Export to React code via plugins (Locofy, Anima, Builder.io)
-- **Figma MCP** — Claude Code can read your Figma file directly via the official MCP server and implement design changes automatically
+```
+Teacher taps [Share] → copies https://app.kelzo.ai/share/{token}
+  └── Recipient taps link
+        ├── App installed → deep link → ShareResultScreen (no login needed)
+        │     ├── Student name + score + test name
+        │     ├── Q-by-Q feedback (read-only, expandable)
+        │     └── Fully self-contained — works without account
+        └── No app → browser → ShareView (web, same content)
+
+Deep link config:
+  Android:  intentFilters in app.json (App Links)
+            assetlinks.json at app.kelzo.ai/.well-known/
+  iOS:      associatedDomains in app.json (Universal Links)
+            apple-app-site-association at app.kelzo.ai/.well-known/
+  Custom scheme fallback: kelzo://share/{token}
+```
+
+---
+
+## 5. BRANDING CHANGE CHECKLIST
+
+When you rebrand (new name / logo / colors):
+
+**Web:**
+- [ ] `student-analyzer/src/lib/branding.js` — name, logo, URLs
+- [ ] `landing/index.html` — search & replace product name (marked `<!-- BRANDING: -->`)
+- [ ] `student-analyzer/src/lib/theme.js` — color variables
+- [ ] `student-analyzer/index.html` — `<title>` tag
+
+**Mobile:**
+- [ ] `mobile/src/lib/branding.ts` — name, logo, URLs
+- [ ] `mobile/app.json` — `name`, `slug`, `android.package`, `ios.bundleIdentifier`
+- [ ] `mobile/assets/` — replace `icon.png`, `splash-icon.png`, `adaptive-icon.png`
+
+---
+
+## 6. DESIGN SOFTWARE
+
+### Figma (recommended)
+**Free plan is fine for solo/small team use.**
+- Unlimited personal files
+- Design + prototype
+- Share with devs (view-only link, free)
+- Limitations: max 3 team projects, no version history beyond 30 days
 
 **Workflow:**
-1. You design in Figma (using this flows doc as reference)
-2. Share Figma file URL with Claude Code (via Figma MCP)
-3. Claude reads the design → implements pixel-accurate code
-4. Or: paste Figma frame screenshots directly into Claude
+1. Design screens in Figma using this doc as reference
+2. Export frames as PNG → paste into Claude for implementation
+3. Or use Figma MCP (Claude Code) to read your file directly
 
-**Figma MCP setup (for Claude Code):**
-```
-# In Claude Code settings, add:
+**Figma MCP setup:**
+```json
 {
   "mcpServers": {
     "figma": {
@@ -279,23 +368,15 @@ Teacher shares: https://app.kelzo.ai/share/{token}
 }
 ```
 
-**Design tokens → code:** Your `theme.js` / `branding.js` already use CSS variables — these map 1:1 to Figma variables. Update both simultaneously when rebranding.
+### Free alternatives
+| Tool | Best for |
+|------|----------|
+| **Figma** (free) | Recommended — industry standard |
+| **Penpot** | 100% free & open source, Figma-like |
+| **Framer** | Free tier, great for interactive prototypes |
+| **Excalidraw** | Quick wireframes only |
 
 ---
 
-## Branding Change Checklist
-When you rebrand (new name/logo/colors):
-
-**Web:**
-- [ ] `student-analyzer/src/lib/branding.js` — name, logo, URLs
-- [ ] `landing/index.html` — search & replace product name (marked with `<!-- BRANDING: -->` comments)
-- [ ] `student-analyzer/src/lib/theme.js` — color variables
-- [ ] `student-analyzer/index.html` — `<title>` tag
-
-**Mobile:**
-- [ ] `mobile/src/lib/branding.ts` — name, logo, URLs
-- [ ] `mobile/app.json` — `name`, `slug`, `android.package`, `ios.bundleIdentifier`
-- [ ] `mobile/assets/` — replace `icon.png`, `splash-icon.png`, `adaptive-icon.png`
-
----
-*Generated: 2025-05-02 | Repo: UjjwalSingh5151/compliance-ai*
+*File: `FLOWS.md` at repo root — update this whenever a new screen is added.*
+*Repo: UjjwalSingh5151/compliance-ai*
