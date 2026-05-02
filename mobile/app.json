@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "scheme": "kelzo",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ai.kelzo.edugrade",
+      "associatedDomains": ["applinks:app.kelzo.ai"],
       "infoPlist": {
         "NSCameraUsageDescription": "EduGrade needs camera access to scan answer sheets and question papers.",
         "NSPhotoLibraryUsageDescription": "EduGrade needs photo library access to select answer sheets from your gallery.",
@@ -33,7 +35,21 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ],
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "app.kelzo.ai",
+              "pathPrefix": "/share"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -145,4 +145,18 @@ export const api = {
 
   // Analytics
   getMyAnalytics: () => request<any>("/api/analytics/me"),
+
+  // Student portal (authenticated, email-matched)
+  getStudentMe: () => request<{ student: any }>("/api/student/me"),
+  getStudentResults: () =>
+    request<{ student: any; results: any[] }>("/api/student/results"),
+  getStudentResult: (id: string) =>
+    request<{ result: any; practiceSet: any | null }>(`/api/student/results/${id}`),
+
+  // Public share — no auth, used by ShareResultScreen
+  getShare: async (token: string): Promise<{ result: any }> => {
+    const res = await fetch(`${API_URL}/api/analyzer/share/${token}`);
+    if (!res.ok) throw new Error(`Share not found (${res.status})`);
+    return res.json();
+  },
 };
