@@ -38,6 +38,7 @@ export const api = {
     json(`/api/school/members/${id}`, { method: "DELETE" }),
 
   // Admin
+  inviteSchool: (email) => json("/api/admin/invite-school", { method: "POST", body: JSON.stringify({ email }) }),
   getAdminSchools: () => json("/api/admin/schools"),
   updateSchoolStatus: (id, status) =>
     json(`/api/admin/schools/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),

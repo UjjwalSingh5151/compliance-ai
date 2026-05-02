@@ -27,6 +27,27 @@ router.patch("/schools/:id", requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── Invite school ────────────────────────────────────────────────────────────
+// Uses Supabase admin invite — sends a magic link that bypasses OTP expiry.
+// The school owner clicks the link, lands on app.kelzo.ai, goes through
+// SchoolSetup, and appears in the pending list for approval.
+
+router.post("/invite-school", requireAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email?.trim()) return res.status(400).json({ error: "Email is required" });
+
+    const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      email.trim().toLowerCase(),
+      { redirectTo: process.env.APP_URL || "https://app.kelzo.ai" }
+    );
+    if (error) throw error;
+    res.json({ ok: true, email: data.user?.email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Credits management ───────────────────────────────────────────────────────
 
 // GET /admin/credits — all approved schools with credit balance + recent usage

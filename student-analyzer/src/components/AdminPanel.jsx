@@ -2,6 +2,88 @@ import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { c, card, btn, input } from "../lib/theme";
 
+// ─── Invite school sub-panel ──────────────────────────────────────────────────
+function InvitePanel({ isMobile }) {
+  const [email, setEmail]       = useState("");
+  const [sending, setSending]   = useState(false);
+  const [sent, setSent]         = useState([]);   // list of successfully invited emails
+  const [error, setError]       = useState(null);
+
+  const send = async () => {
+    if (!email.trim()) return;
+    setSending(true); setError(null);
+    try {
+      await api.inviteSchool(email.trim());
+      setSent((prev) => [email.trim(), ...prev]);
+      setEmail("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: c.textMid, marginBottom: 18, lineHeight: 1.6 }}>
+        Enter the school admin's email. They'll receive a magic link that logs them in directly —
+        no OTP expiry issues. Once they complete setup, their school appears in the Pending list for you to approve.
+      </div>
+
+      <div style={{ ...card, padding: isMobile ? 16 : 20, marginBottom: 16 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: c.textMid, display: "block", marginBottom: 8 }}>
+          SCHOOL ADMIN EMAIL
+        </label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            style={{ ...input, flex: 1, minWidth: 200, fontSize: 13 }}
+            type="email"
+            placeholder="principal@school.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+            disabled={sending}
+          />
+          <button
+            style={{ ...btn.primary, fontSize: 13, opacity: sending ? 0.6 : 1, whiteSpace: "nowrap" }}
+            onClick={send}
+            disabled={sending || !email.trim()}
+          >
+            {sending ? "Sending…" : "Send Invite"}
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: 10, fontSize: 12, color: c.danger, background: `${c.danger}12`, padding: "8px 12px", borderRadius: 6 }}>
+            {error}
+          </div>
+        )}
+      </div>
+
+      {sent.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.success, marginBottom: 8, letterSpacing: 0.5 }}>
+            INVITES SENT ({sent.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {sent.map((e) => (
+              <div key={e} style={{ ...card, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 16 }}>✉️</span>
+                <div>
+                  <div style={{ fontSize: 13, color: c.text }}>{e}</div>
+                  <div style={{ fontSize: 11, color: c.textDim, marginTop: 1 }}>
+                    Magic link sent — they'll appear in Pending once they complete setup
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_COLOR = { approved: c.success, pending: c.warning, rejected: c.danger };
 
 // ─── Credits sub-panel ────────────────────────────────────────────────────────
@@ -142,7 +224,7 @@ export default function AdminPanel({ navigate, isMobile }) {
   const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(null);
-  const [tab, setTab] = useState("schools"); // "schools" | "credits"
+  const [tab, setTab] = useState("schools"); // "schools" | "invite" | "credits"
   const p = isMobile ? 16 : 28;
 
   useEffect(() => {
@@ -174,7 +256,7 @@ export default function AdminPanel({ navigate, isMobile }) {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 2, marginBottom: 20, borderBottom: `1px solid ${c.border}` }}>
-        {[["schools", "🏫 Schools"], ["credits", "💳 Credits"]].map(([id, label]) => (
+        {[["schools", "🏫 Schools"], ["invite", "✉️ Invite School"], ["credits", "💳 Credits"]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ padding: "8px 16px", fontSize: 13, background: "transparent", border: "none",
               borderBottom: tab === id ? `2px solid ${c.accent}` : "2px solid transparent",
@@ -185,6 +267,7 @@ export default function AdminPanel({ navigate, isMobile }) {
         ))}
       </div>
 
+      {tab === "invite"  && <InvitePanel  isMobile={isMobile} />}
       {tab === "credits" && <CreditsPanel isMobile={isMobile} />}
 
       {tab === "schools" && (
