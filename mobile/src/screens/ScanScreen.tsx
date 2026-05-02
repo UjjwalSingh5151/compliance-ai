@@ -12,7 +12,7 @@
 import React, { useState, useRef } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet, Image, FlatList,
-  Alert, ActivityIndicator, ScrollView, Dimensions,
+  Alert, ActivityIndicator, ScrollView, Dimensions, Share,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
@@ -32,14 +32,21 @@ interface Copy {
 }
 
 interface ScanResult {
-  copyId:   string;
-  copyNum:  number;
-  analysis: any;
-  error?:   string;
+  copyId:      string;
+  copyNum:     number;
+  analysis:    any;
+  resultId?:   string;
+  shareToken?: string;
+  error?:      string;
 }
 
 // ─── Result card ──────────────────────────────────────────────────────────────
 function ResultCard({ result, totalMarks }: { result: ScanResult; totalMarks: number }) {
+  const shareResult = () => {
+    const url = `https://app.kelzo.ai/share/${result.shareToken}`;
+    Share.share({ message: url, url });
+  };
+
   if (result.error) {
     return (
       <View style={[styles.resultCard, { borderColor: c.danger }]}>
@@ -85,6 +92,13 @@ function ResultCard({ result, totalMarks }: { result: ScanResult; totalMarks: nu
           {a.overall_feedback}
         </Text>
       )}
+
+      {/* Share button — only shown when server returned a shareToken */}
+      {result.shareToken && (
+        <TouchableOpacity style={styles.shareBtn} onPress={shareResult}>
+          <Text style={styles.shareBtnText}>🔗 Share result with student</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -100,11 +114,13 @@ export default function ScanScreen({ route, navigation }: any) {
   const [currentPages, setCurrentPages] = useState<PhotoPage[]>([]);
 
   // Queue of completed copies waiting for analysis
-  const [copies, setCopies]     = useState<Copy[]>([]);
+  const [copies, setCopies]       = useState<Copy[]>([]);
+  // When non-null, "Copy Done" saves back into this copy id instead of appending
+  const [editingCopyId, setEditingCopyId] = useState<string | null>(null);
 
-  const [step, setStep]         = useState<Step>("capture");
-  const [progress, setProgress] = useState("");
-  const [results, setResults]   = useState<ScanResult[]>([]);
+  const [step, setStep]           = useState<Step>("capture");
+  const [progress, setProgress]   = useState("");
+  const [results, setResults]     = useState<ScanResult[]>([]);
 
   const goHome = () => navigation.navigate("Home");
 
@@ -151,13 +167,28 @@ export default function ScanScreen({ route, navigation }: any) {
     }
   };
 
-  /** Finish scanning current copy → add to queue → show copies list */
+  /** Finish scanning current copy → add to queue (or update if editing) */
   const finishCopy = () => {
     if (!currentPages.length) return;
-    const newCopy: Copy = { id: Date.now().toString(), pages: [...currentPages] };
-    setCopies((prev) => [...prev, newCopy]);
+    if (editingCopyId) {
+      // Save back into the existing copy, preserving its position in the list
+      setCopies((prev) =>
+        prev.map((cp) => cp.id === editingCopyId ? { ...cp, pages: [...currentPages] } : cp)
+      );
+      setEditingCopyId(null);
+    } else {
+      const newCopy: Copy = { id: Date.now().toString(), pages: [...currentPages] };
+      setCopies((prev) => [...prev, newCopy]);
+    }
     setCurrentPages([]);
     setStep("copies");
+  };
+
+  /** Open an existing copy for editing — loads its pages back into the camera */
+  const editCopy = (copy: Copy) => {
+    setCurrentPages([...copy.pages]);
+    setEditingCopyId(copy.id);
+    setStep("capture");
   };
 
   /** Upload all queued copies sequentially and stream results */
@@ -180,9 +211,11 @@ export default function ScanScreen({ route, navigation }: any) {
         await api.analyzeSheet(test.id, pdfUri, filename, (event: any) => {
           if (event.type === "result") {
             const r: ScanResult = {
-              copyId:   copy.id,
-              copyNum:  i + 1,
-              analysis: event.analysis,
+              copyId:     copy.id,
+              copyNum:    i + 1,
+              analysis:   event.analysis,
+              resultId:   event.resultId,
+              shareToken: event.shareToken,
             };
             collected.push(r);
           } else if (event.type === "error") {
@@ -211,18 +244,27 @@ export default function ScanScreen({ route, navigation }: any) {
 
   // ── CAPTURE ───────────────────────────────────────────────────────────────
   if (step === "capture") {
-    const hasExisting = copies.length > 0;
+    const hasExisting  = copies.length > 0;
+    const isEditing    = editingCopyId !== null;
+    const editingIndex = isEditing ? copies.findIndex((cp) => cp.id === editingCopyId) : -1;
 
     return (
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={hasExisting ? () => setStep("copies") : goHome}>
+          <TouchableOpacity onPress={() => {
+            if (isEditing) { setEditingCopyId(null); setCurrentPages([]); }
+            hasExisting ? setStep("copies") : goHome();
+          }}>
             <Text style={styles.backText}>
               {hasExisting ? `← Queue (${copies.length})` : "← Home"}
             </Text>
           </TouchableOpacity>
           <Text style={styles.testLabel} numberOfLines={1}>
-            {freshlyCreated && copies.length === 0 ? "📷 Scan first copy" : test.name}
+            {isEditing
+              ? `Editing copy ${editingIndex + 1}`
+              : freshlyCreated && copies.length === 0
+                ? "📷 Scan first copy"
+                : test.name}
           </Text>
           <View style={{ width: 80 }} />
         </View>
@@ -271,7 +313,8 @@ export default function ScanScreen({ route, navigation }: any) {
             onPress={finishCopy}
           >
             <Text style={styles.copyDoneBtnText}>
-              Copy{"\n"}Done{currentPages.length > 0 ? `\n(${currentPages.length})` : ""}
+              {isEditing ? "Save\nCopy" : "Copy\nDone"}
+              {currentPages.length > 0 ? `\n(${currentPages.length})` : ""}
             </Text>
           </TouchableOpacity>
         </View>
@@ -329,13 +372,21 @@ export default function ScanScreen({ route, navigation }: any) {
                   )}
                 </View>
               </View>
-              {/* Delete */}
-              <TouchableOpacity
-                style={styles.copyDeleteBtn}
-                onPress={() => setCopies((prev) => prev.filter((cp) => cp.id !== item.id))}
-              >
-                <Text style={styles.copyDeleteText}>✕</Text>
-              </TouchableOpacity>
+              {/* Edit / Delete */}
+              <View style={{ gap: 8, alignItems: "center" }}>
+                <TouchableOpacity
+                  style={styles.copyEditBtn}
+                  onPress={() => editCopy(item)}
+                >
+                  <Text style={styles.copyEditText}>✏️</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.copyDeleteBtn}
+                  onPress={() => setCopies((prev) => prev.filter((cp) => cp.id !== item.id))}
+                >
+                  <Text style={styles.copyDeleteText}>✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         />
@@ -452,6 +503,8 @@ const styles = StyleSheet.create({
   copyMiniThumb:   { width: 24, height: 30, borderRadius: 3 },
   copyMiniMore:    { width: 24, height: 30, borderRadius: 3, backgroundColor: c.border, alignItems: "center", justifyContent: "center" },
   copyMiniMoreText:{ fontSize: 8, color: c.textMid, fontWeight: "700" },
+  copyEditBtn:     { padding: 6 },
+  copyEditText:    { fontSize: 16 },
   copyDeleteBtn:   { padding: 6 },
   copyDeleteText:  { fontSize: 16, color: c.textDim },
   copiesFooter:    { padding: 16, gap: 10, borderTopWidth: 1, borderTopColor: c.border },
@@ -475,6 +528,8 @@ const styles = StyleSheet.create({
   parseWarn:       { fontSize: 11, color: c.warning, marginTop: 8 },
   feedbackText:    { fontSize: 12, color: c.textMid, marginTop: 8, lineHeight: 18 },
   resultError:     { fontSize: 13, marginTop: 4 },
+  shareBtn:        { marginTop: 12, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 10, alignItems: "center" },
+  shareBtnText:    { fontSize: 13, color: c.accent, fontWeight: "600" },
   // Buttons
   primaryBtn:      { backgroundColor: c.accent, borderRadius: 10, padding: 16, alignItems: "center" },
   primaryBtnText:  { color: "#fff", fontWeight: "700", fontSize: 14 },
