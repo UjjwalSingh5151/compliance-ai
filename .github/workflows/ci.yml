@@ -22,9 +22,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          cache-dependency-path: backend/package.json
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install backend deps
         run: npm ci
@@ -34,7 +34,6 @@ jobs:
         run: npm test
         working-directory: backend
         env:
-          # These are safe placeholder values for test mocks
           ANTHROPIC_API_KEY: sk-ant-test
           ADMIN_USER_ID: test-admin-id
 
@@ -48,9 +47,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          cache-dependency-path: student-analyzer/package.json
+          cache-dependency-path: student-analyzer/package-lock.json
 
       - name: Install web deps
         run: npm ci
@@ -73,11 +72,11 @@ jobs:
 
     steps:
       - name: Trigger Render staging deploy
+        if: secrets.RENDER_STAGING_DEPLOY_HOOK != ''
         run: |
           curl -s -X POST "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" \
             -H "Content-Type: application/json" \
             --fail-with-body
-        # Add RENDER_STAGING_DEPLOY_HOOK in GitHub → Settings → Secrets
 
   # ── 4. Deploy to production (Render) — main branch only ──────────────────────
   deploy-production:
@@ -88,8 +87,8 @@ jobs:
 
     steps:
       - name: Trigger Render production deploy
+        if: secrets.RENDER_PROD_DEPLOY_HOOK != ''
         run: |
           curl -s -X POST "${{ secrets.RENDER_PROD_DEPLOY_HOOK }}" \
             -H "Content-Type: application/json" \
             --fail-with-body
-        # Add RENDER_PROD_DEPLOY_HOOK in GitHub → Settings → Secrets
