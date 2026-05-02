@@ -7,7 +7,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl, Alert, Share,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "../lib/api";
@@ -53,6 +53,11 @@ export default function TestResultsScreen({ route, navigation }: any) {
       ? new Date(item.analyzed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
       : "";
 
+    const shareResult = () => {
+      const url = `https://app.kelzo.ai/share/${item.share_token}`;
+      Share.share({ message: url, url });
+    };
+
     return (
       <TouchableOpacity
         style={styles.card}
@@ -64,7 +69,14 @@ export default function TestResultsScreen({ route, navigation }: any) {
           {roll  && <Text style={styles.meta}>Roll: {roll}</Text>}
           {date  && <Text style={styles.meta}>{date}</Text>}
         </View>
-        <ScoreBadge obtained={item.marks_obtained} total={item.total_marks || test.total_marks} />
+        <View style={styles.cardRight}>
+          <ScoreBadge obtained={item.marks_obtained} total={item.total_marks || test.total_marks} />
+          {item.share_token && (
+            <TouchableOpacity style={styles.shareIconBtn} onPress={shareResult} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.shareIconText}>🔗</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -167,8 +179,11 @@ const styles = StyleSheet.create({
   // List
   list:         { padding: 14, gap: 10 },
   emptyContainer: { flex: 1 },
-  card:         { flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border },
-  cardLeft:     { flex: 1 },
+  card:           { flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border },
+  cardLeft:       { flex: 1 },
+  cardRight:      { alignItems: "flex-end", gap: 8 },
+  shareIconBtn:   { padding: 4 },
+  shareIconText:  { fontSize: 18 },
   studentName:  { fontSize: 15, fontWeight: "600", color: c.text, marginBottom: 3 },
   meta:         { fontSize: 12, color: c.textMid, marginTop: 1 },
   badge:        { borderRadius: 10, borderWidth: 1, padding: 8, alignItems: "center", minWidth: 64 },

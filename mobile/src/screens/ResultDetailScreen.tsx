@@ -13,7 +13,7 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, TextInput,
+  TouchableOpacity, Alert, TextInput, Share,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { api } from "../lib/api";
@@ -155,6 +155,12 @@ export default function ResultDetailScreen({ route, navigation }: any) {
     finally { setSaving(false); }
   };
 
+  const shareResult = () => {
+    if (!result?.share_token) return;
+    const url = `https://app.kelzo.ai/share/${result.share_token}`;
+    Share.share({ message: url, url });
+  };
+
   // Build inline viewer URL — PDFs use Google Docs Viewer for inline rendering
   const sheetViewerUrl = (url: string) => {
     const isPDF = /\.pdf($|\?)/i.test(url) || url.includes("application%2Fpdf");
@@ -202,16 +208,23 @@ export default function ResultDetailScreen({ route, navigation }: any) {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {test.name || testName || "Result"}
         </Text>
-        {questions.length > 0 && (
-          <TouchableOpacity
-            style={[styles.saveBtn, { opacity: saving ? 0.5 : 1 }]}
-            onPress={saveComments}
-            disabled={saving}
-          >
-            <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
-          </TouchableOpacity>
-        )}
-        {questions.length === 0 && <View style={{ width: 52 }} />}
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {result?.share_token && (
+            <TouchableOpacity style={styles.shareBtn} onPress={shareResult}>
+              <Text style={styles.shareBtnText}>🔗</Text>
+            </TouchableOpacity>
+          )}
+          {questions.length > 0 && (
+            <TouchableOpacity
+              style={[styles.saveBtn, { opacity: saving ? 0.5 : 1 }]}
+              onPress={saveComments}
+              disabled={saving}
+            >
+              <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {!result?.share_token && questions.length === 0 && <View style={{ width: 52 }} />}
       </View>
 
       {/* Tab bar — only if there's a sheet */}
@@ -339,6 +352,8 @@ const styles = StyleSheet.create({
   headerTitle:      { flex: 1, fontSize: 15, fontWeight: "700", color: c.text, textAlign: "center" },
   saveBtn:          { backgroundColor: `${c.purple}25`, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: `${c.purple}50` },
   saveBtnText:      { fontSize: 12, color: c.purple, fontWeight: "700" },
+  shareBtn:         { width: 34, height: 34, borderRadius: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  shareBtnText:     { fontSize: 16 },
   // Tabs
   tabBar:           { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: c.border },
   tabBtn:           { flex: 1, alignItems: "center", paddingVertical: 11 },

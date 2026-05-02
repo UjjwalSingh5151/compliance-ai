@@ -125,11 +125,8 @@ export default function StudentHomeScreen({ navigation }: any) {
             </Text>
           )}
         </View>
-        <TouchableOpacity onPress={() => Alert.alert("Sign out", "Are you sure?", [
-          { text: "Cancel", style: "cancel" },
-          { text: "Sign out", style: "destructive", onPress: signOut },
-        ])}>
-          <Text style={styles.signOut}>Sign out</Text>
+        <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate("Profile")}>
+          <Text style={styles.profileIcon}>👤</Text>
         </TouchableOpacity>
       </View>
 
@@ -206,7 +203,8 @@ const styles = StyleSheet.create({
   header:            { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", padding: 20, paddingTop: 56, borderBottomWidth: 1, borderBottomColor: c.border },
   headerTitle:       { fontSize: 20, fontWeight: "700", color: c.text },
   headerSub:         { fontSize: 13, color: c.textMid, marginTop: 4 },
-  signOut:           { fontSize: 13, color: c.textDim, paddingTop: 4 },
+  profileBtn:        { width: 34, height: 34, borderRadius: 17, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  profileIcon:       { fontSize: 16 },
   // Stats
   statsRow:          { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: c.border },
   stat:              { flex: 1, alignItems: "center" },

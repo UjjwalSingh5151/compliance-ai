@@ -159,6 +159,21 @@ router.get("/teachers", requireSchool, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /teachers/me — current teacher's own CRM record, matched by auth email
+router.get("/teachers/me", requireSchool, async (req, res) => {
+  try {
+    const email = req.user.email?.toLowerCase();
+    if (!email) return res.json({ teacher: null });
+    const { data } = await supabaseAdmin
+      .from("school_teachers")
+      .select("*")
+      .eq("school_id", req.school.id)
+      .ilike("email", email)
+      .maybeSingle();
+    res.json({ teacher: data || null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.post("/teachers/import", requireSchool, async (req, res) => {
   try {
     const { teachers } = req.body;

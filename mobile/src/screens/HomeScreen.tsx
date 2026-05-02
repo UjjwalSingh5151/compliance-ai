@@ -107,11 +107,8 @@ export default function HomeScreen({ navigation }: any) {
               <Text style={styles.errBadgeText}>⚠ {errCount}</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={() => Alert.alert("Sign out", "Are you sure?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Sign out", style: "destructive", onPress: signOut },
-          ])}>
-            <Text style={styles.signOut}>Sign out</Text>
+          <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate("Profile")}>
+            <Text style={styles.profileIcon}>👤</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -191,9 +188,10 @@ const styles = StyleSheet.create({
   headerTitle:    { fontSize: 20, fontWeight: "700", color: c.text },
   creditsText:    { fontSize: 12, fontWeight: "600", marginTop: 4 },
   headerRight:    { flexDirection: "row", alignItems: "center", gap: 10 },
-  signOut:        { fontSize: 13, color: c.textDim, paddingTop: 2 },
   errBadge:       { backgroundColor: `${c.warning}25`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: `${c.warning}50` },
   errBadgeText:   { fontSize: 12, color: c.warning, fontWeight: "700" },
+  profileBtn:     { width: 34, height: 34, borderRadius: 17, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  profileIcon:    { fontSize: 16 },
   // Action buttons
   actionRow:      { flexDirection: "row", gap: 12, padding: 16 },
   actionBtn:      { flex: 1, borderRadius: 14, borderWidth: 1.5, padding: 16, alignItems: "center" },

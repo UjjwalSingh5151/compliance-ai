@@ -150,6 +150,9 @@ export const api = {
       method: "PATCH", body: JSON.stringify({ comments }),
     }),
 
+  // Teacher self-profile (CRM record matched by auth email)
+  getMyTeacherProfile: () => request<{ teacher: any | null }>("/api/school/teachers/me"),
+
   // Analytics
   getMyAnalytics: () => request<any>("/api/analytics/me"),
 
