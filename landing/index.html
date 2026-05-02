@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduGrade — AI-powered answer sheet grading</title>
+  <meta name="description" content="Grade answer sheets in seconds with AI. Built for schools, teachers, and students." />
+
+  <!-- ── BRANDING: change these ── -->
+  <!-- Product name: "EduGrade" — search & replace all occurrences        -->
+  <!-- Logo: replace the emoji in .logo-text or add <img> in .logo        -->
+  <!-- Colors: edit the :root CSS variables below                          -->
+  <!-- Domain: replace kelzo.ai with your domain                          -->
+
+  <style>
+    /* ── Design tokens — change here to retheme everything ── */
+    :root {
+      --bg:          #0d1117;
+      --bg2:         #161b22;
+      --border:      #30363d;
+      --text:        #e6edf3;
+      --text-mid:    #8b949e;
+      --text-dim:    #484f58;
+      --accent:      #3b82f6;
+      --accent-dim:  #1d3a6e;
+      --success:     #22c55e;
+      --warning:     #f59e0b;
+      --purple:      #a78bfa;
+      --radius:      12px;
+      --radius-lg:   20px;
+      --font:        -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 40px;
+      background: rgba(13,17,23,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-text { font-size: 20px; font-weight: 700; color: var(--text); }
+    /* BRANDING: replace emoji with <img src="logo.svg"> when ready */
+    .logo-emoji { font-size: 24px; }
+
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a { font-size: 14px; color: var(--text-mid); }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .btn-nav {
+      background: var(--accent); color: #fff !important;
+      padding: 8px 18px; border-radius: 8px; font-weight: 600; font-size: 14px;
+    }
+    .btn-nav:hover { opacity: 0.9; text-decoration: none !important; }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 100px 24px 80px;
+      max-width: 800px; margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: var(--accent-dim); color: var(--accent);
+      border: 1px solid rgba(59,130,246,0.3);
+      padding: 5px 14px; border-radius: 20px;
+      font-size: 13px; font-weight: 600; margin-bottom: 28px;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 800; line-height: 1.15;
+      letter-spacing: -1px; margin-bottom: 20px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: 18px; color: var(--text-mid);
+      max-width: 540px; margin: 0 auto 40px;
+    }
+    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      padding: 14px 28px; border-radius: var(--radius);
+      font-weight: 700; font-size: 15px; display: inline-block;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.9; text-decoration: none; }
+    .btn-secondary {
+      background: var(--bg2); color: var(--text);
+      border: 1px solid var(--border);
+      padding: 14px 28px; border-radius: var(--radius);
+      font-weight: 600; font-size: 15px; display: inline-block;
+    }
+    .btn-secondary:hover { border-color: var(--accent); text-decoration: none; }
+
+    /* ── Stats bar ── */
+    .stats {
+      display: flex; justify-content: center; gap: 48px; flex-wrap: wrap;
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .stat { text-align: center; }
+    .stat-num { font-size: 28px; font-weight: 800; color: var(--accent); }
+    .stat-label { font-size: 13px; color: var(--text-mid); margin-top: 2px; }
+
+    /* ── Section ── */
+    section { padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 12px; font-weight: 700; color: var(--accent);
+      letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(26px, 4vw, 40px); font-weight: 800;
+      line-height: 1.2; margin-bottom: 16px;
+    }
+    .section-sub { font-size: 16px; color: var(--text-mid); max-width: 520px; }
+
+    /* ── Features grid ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px; margin-top: 48px;
+    }
+    .feature-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px;
+      transition: border-color 0.2s;
+    }
+    .feature-card:hover { border-color: var(--accent); }
+    .feature-icon { font-size: 32px; margin-bottom: 16px; }
+    .feature-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .feature-desc { font-size: 14px; color: var(--text-mid); line-height: 1.65; }
+
+    /* ── Who is it for ── */
+    .personas {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px; margin-top: 48px;
+    }
+    .persona-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px;
+    }
+    .persona-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .persona-subtitle { font-size: 13px; color: var(--accent); font-weight: 600; margin-bottom: 14px; }
+    .persona-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .persona-list li { font-size: 14px; color: var(--text-mid); display: flex; gap: 8px; }
+    .persona-list li::before { content: "✓"; color: var(--success); flex-shrink: 0; }
+
+    /* ── CTA band ── */
+    .cta-band {
+      background: linear-gradient(135deg, var(--accent-dim) 0%, #0d1117 100%);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: var(--radius-lg); padding: 60px 40px;
+      text-align: center; margin: 0 24px;
+    }
+    .cta-band h2 { font-size: 32px; font-weight: 800; margin-bottom: 12px; }
+    .cta-band p { font-size: 16px; color: var(--text-mid); margin-bottom: 32px; }
+    .cta-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px; text-align: center;
+      color: var(--text-dim); font-size: 13px;
+    }
+    footer a { color: var(--text-dim); }
+    footer a:hover { color: var(--text-mid); }
+    .footer-links { display: flex; gap: 24px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+
+    /* ── Mobile ── */
+    @media (max-width: 640px) {
+      nav { padding: 14px 20px; }
+      .nav-links .hide-mobile { display: none; }
+      .hero { padding: 64px 20px 56px; }
+      .stats { gap: 32px; }
+      .cta-band { padding: 40px 24px; margin: 0 16px; }
+      footer { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Nav ──────────────────────────────────────────────────────────────── -->
+  <nav>
+    <div class="logo">
+      <!-- BRANDING: replace emoji with <img> when logo is ready -->
+      <span class="logo-emoji">📝</span>
+      <span class="logo-text">EduGrade</span>
+    </div>
+    <div class="nav-links">
+      <a href="#features" class="hide-mobile">Features</a>
+      <a href="#who" class="hide-mobile">Who it's for</a>
+      <a href="mailto:support@kelzo.ai" class="hide-mobile">Contact</a>
+      <!-- BRANDING: update href to your school portal URL -->
+      <a href="https://app.kelzo.ai" class="btn-nav">School Login →</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+  <div class="hero">
+    <div class="hero-badge">✨ Powered by Claude AI</div>
+    <h1>Grade answer sheets<br/><span>in seconds, not hours</span></h1>
+    <p>
+      AI-powered grading for schools. Teachers scan notebooks,
+      students get instant detailed feedback — question by question.
+    </p>
+    <div class="hero-ctas">
+      <!-- BRANDING: update href to your school portal URL -->
+      <a href="https://app.kelzo.ai" class="btn-primary">Get started — it's free</a>
+      <a href="#who" class="btn-secondary">See how it works ↓</a>
+    </div>
+  </div>
+
+  <!-- ── Stats ─────────────────────────────────────────────────────────────── -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">~30s</div>
+      <div class="stat-label">per answer sheet</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">Q-by-Q</div>
+      <div class="stat-label">feedback per student</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">Any subject</div>
+      <div class="stat-label">works for all boards</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">0 setup</div>
+      <div class="stat-label">scan & go</div>
+    </div>
+  </div>
+
+  <!-- ── Features ──────────────────────────────────────────────────────────── -->
+  <section id="features">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Everything your school needs</h2>
+    <p class="section-sub">
+      From scanning a single answer sheet to managing hundreds of students across classes.
+    </p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📸</div>
+        <div class="feature-title">Scan from mobile</div>
+        <div class="feature-desc">
+          Teachers photograph answer sheets with their phone. The app stitches pages into a PDF and sends it to Claude for grading.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧠</div>
+        <div class="feature-title">AI grading — question by question</div>
+        <div class="feature-desc">
+          Claude reads the question paper and student answers, awards marks per question, and writes personalised feedback.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Class analytics</div>
+        <div class="feature-desc">
+          See average scores, subject-wise performance, and identify students who need extra attention — across all tests.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📲</div>
+        <div class="feature-title">Share results instantly</div>
+        <div class="feature-desc">
+          Send results via WhatsApp link. Students and parents see the full evaluation — marks, strengths, and what to improve.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏫</div>
+        <div class="feature-title">School management</div>
+        <div class="feature-desc">
+          Admin portal for schools: manage teachers, students, classes, and credits. Full oversight with role-based access.
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📄</div>
+        <div class="feature-title">Question paper generation</div>
+        <div class="feature-desc">
+          Generate practice papers from any topic or syllabus. Export as PDF for printing or sharing digitally.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Who is it for ─────────────────────────────────────────────────────── -->
+  <section id="who" style="background: var(--bg2); max-width: 100%; padding: 80px 24px;">
+    <div style="max-width: 1100px; margin: 0 auto;">
+      <div class="section-label">Who it's for</div>
+      <h2 class="section-title">Built for everyone in the classroom</h2>
+      <div class="personas">
+        <div class="persona-card">
+          <div style="font-size: 36px; margin-bottom: 12px;">🏫</div>
+          <div class="persona-title">Schools</div>
+          <div class="persona-subtitle">Web portal at app.kelzo.ai</div>
+          <ul class="persona-list">
+            <li>Manage all teachers and students</li>
+            <li>Assign credits and set permissions</li>
+            <li>View school-wide analytics</li>
+            <li>Approve new teacher accounts</li>
+          </ul>
+        </div>
+        <div class="persona-card">
+          <div style="font-size: 36px; margin-bottom: 12px;">👨‍🏫</div>
+          <div class="persona-title">Teachers</div>
+          <div class="persona-subtitle">Mobile app (Android & iOS)</div>
+          <ul class="persona-list">
+            <li>Scan question papers from phone camera</li>
+            <li>Photograph answer sheets one by one</li>
+            <li>Get AI grading with per-question feedback</li>
+            <li>Share results with students via WhatsApp</li>
+          </ul>
+        </div>
+        <div class="persona-card">
+          <div style="font-size: 36px; margin-bottom: 12px;">👨‍🎓</div>
+          <div class="persona-title">Students</div>
+          <div class="persona-subtitle">Mobile app or link</div>
+          <ul class="persona-list">
+            <li>View detailed evaluation of their sheet</li>
+            <li>See marks per question with feedback</li>
+            <li>Track performance over time</li>
+            <li>Access via app or shareable link</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <div class="cta-band">
+      <h2>Ready to save hours every week?</h2>
+      <p>Sign up your school today — free to start, no credit card needed.</p>
+      <div class="cta-actions">
+        <!-- BRANDING: update href -->
+        <a href="https://app.kelzo.ai" class="btn-primary">Get started for free →</a>
+        <a href="mailto:support@kelzo.ai" class="btn-secondary">Talk to us</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────────── -->
+  <footer>
+    <div class="footer-links">
+      <!-- BRANDING: update href -->
+      <a href="https://app.kelzo.ai">School Login</a>
+      <a href="mailto:support@kelzo.ai">support@kelzo.ai</a>
+      <a href="#features">Features</a>
+    </div>
+    <!-- BRANDING: update company name and year -->
+    <div>© 2025 Kelzo AI. All rights reserved.</div>
+  </footer>
+
+</body>
+</html>
