@@ -1,87 +1,111 @@
-import React, { useState } from "react";
+/**
+ * LoginScreen — email OTP (no passwords)
+ *
+ * Step 1 (email)  : enter email → "Send Code"
+ * Step 2 (verify) : enter 6-digit code → "Verify"
+ *                   auto-submits once all 6 digits are typed
+ *
+ * Works for teachers (admin-invited, or new) and students (CRM-matched by email).
+ * On success, Supabase fires the auth state listener in AppNavigator.
+ */
+
+import React, { useState, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from "react-native";
-import { signIn, signUp } from "../lib/auth";
-import { supabase } from "../lib/supabase";
+import { sendEmailOtp, verifyEmailOtp } from "../lib/auth";
 import { c } from "../lib/theme";
 
-type Tab = "login" | "signup" | "forgot";
+type Step = "email" | "verify";
+
+const RESEND_SECONDS = 30;
 
 export default function LoginScreen() {
-  const [tab, setTab]           = useState<Tab>("login");
+  const [step, setStep]         = useState<Step>("email");
   const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm]   = useState("");
+  const [code, setCode]         = useState("");
   const [loading, setLoading]   = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const timerRef                = useRef<ReturnType<typeof setInterval> | null>(null);
+  const codeRef                 = useRef<TextInput>(null);
 
-  const reset = (t: Tab) => {
-    setTab(t);
-    setEmail(""); setPassword(""); setConfirm("");
-  };
+  // ── Countdown timer for resend ─────────────────────────────────────────────
+  useEffect(() => {
+    if (countdown <= 0) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+    timerRef.current = setInterval(() => {
+      setCountdown((n) => {
+        if (n <= 1) { clearInterval(timerRef.current!); return 0; }
+        return n - 1;
+      });
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [countdown]);
 
-  // ── Login ──────────────────────────────────────────────────────────────────
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Missing fields", "Please enter your email and password.");
+  // ── Auto-verify when all 6 digits filled ──────────────────────────────────
+  useEffect(() => {
+    if (code.length === 6 && step === "verify" && !loading) {
+      handleVerify();
+    }
+  }, [code]);
+
+  // ── Send OTP ───────────────────────────────────────────────────────────────
+  const handleSendCode = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) {
+      Alert.alert("Invalid email", "Please enter a valid email address.");
       return;
     }
     setLoading(true);
-    const { error } = await signIn({ method: "email", email: email.trim(), password });
-    setLoading(false);
-    if (error) Alert.alert("Login failed", error.message);
-    // On success auth listener in AppNavigator handles navigation
-  };
-
-  // ── Sign up ────────────────────────────────────────────────────────────────
-  const handleSignUp = async () => {
-    if (!email.trim() || !password.trim() || !confirm.trim()) {
-      Alert.alert("Missing fields", "Please fill in all fields.");
-      return;
-    }
-    if (password !== confirm) {
-      Alert.alert("Passwords don't match", "Please make sure both passwords are the same.");
-      return;
-    }
-    if (password.length < 6) {
-      Alert.alert("Password too short", "Password must be at least 6 characters.");
-      return;
-    }
-    setLoading(true);
-    const { error } = await signUp({ email: email.trim(), password });
-    setLoading(false);
-    if (error) {
-      Alert.alert("Sign up failed", error.message);
-    } else {
-      Alert.alert(
-        "Account created",
-        "You're signed in. If your school admin has added your email, you'll see your dashboard now.",
-      );
-    }
-  };
-
-  // ── Forgot password ────────────────────────────────────────────────────────
-  const handleForgot = async () => {
-    if (!email.trim()) {
-      Alert.alert("Enter your email", "Type your email address above first.");
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: "https://app.kelzo.ai",
-    });
+    const { error } = await sendEmailOtp(trimmed);
     setLoading(false);
     if (error) {
-      Alert.alert("Error", error.message);
-    } else {
-      Alert.alert(
-        "Reset link sent",
-        `Check ${email.trim()} for a password reset link. Open it in your browser, set a new password, then log in here.`,
-      );
+      Alert.alert("Could not send code", error.message);
+      return;
     }
+    setEmail(trimmed);
+    setCode("");
+    setStep("verify");
+    setCountdown(RESEND_SECONDS);
+    // Auto-focus the code input after a short delay
+    setTimeout(() => codeRef.current?.focus(), 300);
   };
 
+  // ── Verify OTP ─────────────────────────────────────────────────────────────
+  const handleVerify = async () => {
+    if (code.length !== 6) {
+      Alert.alert("Incomplete code", "Please enter all 6 digits.");
+      return;
+    }
+    setLoading(true);
+    const { error } = await verifyEmailOtp(email, code);
+    setLoading(false);
+    if (error) {
+      Alert.alert("Incorrect code", "The code doesn't match or has expired. Try resending.");
+      setCode("");
+    }
+    // On success the AppNavigator auth listener handles navigation automatically
+  };
+
+  // ── Resend ─────────────────────────────────────────────────────────────────
+  const handleResend = async () => {
+    if (countdown > 0) return;
+    setLoading(true);
+    const { error } = await sendEmailOtp(email);
+    setLoading(false);
+    if (error) {
+      Alert.alert("Could not resend", error.message);
+      return;
+    }
+    setCode("");
+    setCountdown(RESEND_SECONDS);
+    setTimeout(() => codeRef.current?.focus(), 300);
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -96,102 +120,103 @@ export default function LoginScreen() {
         </View>
         <Text style={styles.subtitle}>AI Answer Sheet Grading</Text>
 
-        {/* Tab bar */}
-        <View style={styles.tabRow}>
-          {(["login", "signup", "forgot"] as Tab[]).map((t) => (
+        {/* ── Step 1: Email ── */}
+        {step === "email" && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Sign in</Text>
+            <Text style={styles.cardHint}>
+              We'll send a 6-digit code to your email — no password needed.
+            </Text>
+
+            <Text style={styles.label}>Email address</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="teacher@school.edu"
+              placeholderTextColor={c.textDim}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+              returnKeyType="send"
+              onSubmitEditing={handleSendCode}
+            />
+
             <TouchableOpacity
-              key={t}
-              style={[styles.tabBtn, tab === t && styles.tabBtnActive]}
-              onPress={() => reset(t)}
+              style={[styles.btn, loading && styles.btnDisabled]}
+              onPress={handleSendCode}
+              disabled={loading}
             >
-              <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>
-                {t === "login" ? "Log In" : t === "signup" ? "Sign Up" : "Forgot"}
-              </Text>
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.btnText}>Send Code →</Text>
+              }
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Card */}
-        <View style={styles.card}>
-
-          {/* Email — shared across all tabs */}
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="teacher@school.edu"
-            placeholderTextColor={c.textDim}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          {/* Password — login + signup */}
-          {tab !== "forgot" && (
-            <>
-              <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor={c.textDim}
-                secureTextEntry
-              />
-            </>
-          )}
-
-          {/* Confirm password — signup only */}
-          {tab === "signup" && (
-            <>
-              <Text style={[styles.label, { marginTop: 12 }]}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
-                value={confirm}
-                onChangeText={setConfirm}
-                placeholder="••••••••"
-                placeholderTextColor={c.textDim}
-                secureTextEntry
-              />
-            </>
-          )}
-
-          {/* Action button */}
-          <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
-            onPress={tab === "login" ? handleLogin : tab === "signup" ? handleSignUp : handleForgot}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>
-                {tab === "login" ? "Log In" : tab === "signup" ? "Create Account" : "Send Reset Link"}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Hints */}
-        {tab === "login" && (
-          <Text style={styles.hint}>
-            First time? Use Sign Up to create your account.{"\n"}
-            Forgot your password? Tap Forgot above.
-          </Text>
+          </View>
         )}
-        {tab === "signup" && (
-          <Text style={styles.hint}>
-            Use the email your school admin added for you.{"\n"}
-            You'll be linked to your school automatically.
-          </Text>
+
+        {/* ── Step 2: Verify ── */}
+        {step === "verify" && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Enter the code</Text>
+            <Text style={styles.cardHint}>
+              Sent to{" "}
+              <Text style={styles.emailHighlight}>{email}</Text>
+              {"\n"}Check your inbox (and spam folder).
+            </Text>
+
+            {/* Single wide input — large monospace digits */}
+            <TextInput
+              ref={codeRef}
+              style={styles.codeInput}
+              value={code}
+              onChangeText={(v) => setCode(v.replace(/\D/g, "").slice(0, 6))}
+              placeholder="• • • • • •"
+              placeholderTextColor={c.textDim}
+              keyboardType="number-pad"
+              maxLength={6}
+              textAlign="center"
+              returnKeyType="done"
+              onSubmitEditing={handleVerify}
+            />
+
+            <TouchableOpacity
+              style={[styles.btn, (loading || code.length !== 6) && styles.btnDisabled]}
+              onPress={handleVerify}
+              disabled={loading || code.length !== 6}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.btnText}>Verify →</Text>
+              }
+            </TouchableOpacity>
+
+            {/* Resend row */}
+            <View style={styles.resendRow}>
+              {countdown > 0 ? (
+                <Text style={styles.resendCountdown}>
+                  Resend in {countdown}s
+                </Text>
+              ) : (
+                <TouchableOpacity onPress={handleResend} disabled={loading}>
+                  <Text style={styles.resendLink}>Resend code</Text>
+                </TouchableOpacity>
+              )}
+              <Text style={styles.resendSep}>·</Text>
+              <TouchableOpacity onPress={() => { setStep("email"); setCode(""); }}>
+                <Text style={styles.resendLink}>Change email</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
-        {tab === "forgot" && (
-          <Text style={styles.hint}>
-            Enter your email and we'll send a reset link.{"\n"}
-            Open the link in your browser to set a new password.
-          </Text>
-        )}
+
+        {/* Footer hint */}
+        <Text style={styles.footerHint}>
+          {step === "email"
+            ? "Use the email your school admin added for you."
+            : "The code expires in 10 minutes."}
+        </Text>
 
       </ScrollView>
     </KeyboardAvoidingView>
@@ -199,25 +224,31 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex:           { flex: 1, backgroundColor: c.bg },
-  container:      { flexGrow: 1, justifyContent: "center", padding: 24 },
+  flex:             { flex: 1, backgroundColor: c.bg },
+  container:        { flexGrow: 1, justifyContent: "center", padding: 24 },
   // Logo
-  logoRow:        { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  logoEmoji:      { fontSize: 28, marginRight: 8 },
-  logoText:       { fontSize: 28, fontWeight: "700", color: c.text },
-  subtitle:       { textAlign: "center", fontSize: 13, color: c.textMid, marginBottom: 28 },
-  // Tabs
-  tabRow:         { flexDirection: "row", backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.border, padding: 3, marginBottom: 16 },
-  tabBtn:         { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
-  tabBtnActive:   { backgroundColor: c.accent },
-  tabLabel:       { fontSize: 13, fontWeight: "600", color: c.textMid },
-  tabLabelActive: { color: "#fff" },
+  logoRow:          { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  logoEmoji:        { fontSize: 28, marginRight: 8 },
+  logoText:         { fontSize: 28, fontWeight: "700", color: c.text },
+  subtitle:         { textAlign: "center", fontSize: 13, color: c.textMid, marginBottom: 36 },
   // Card
-  card:           { backgroundColor: c.card, borderRadius: 12, padding: 20, borderWidth: 1, borderColor: c.border },
-  label:          { fontSize: 12, color: c.textMid, marginBottom: 6, fontWeight: "600" },
-  input:          { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 12, color: c.text, fontSize: 15 },
-  btn:            { backgroundColor: c.accent, borderRadius: 8, padding: 14, alignItems: "center", marginTop: 20 },
-  btnDisabled:    { opacity: 0.6 },
-  btnText:        { color: "#fff", fontWeight: "700", fontSize: 15 },
-  hint:           { marginTop: 20, textAlign: "center", fontSize: 12, color: c.textDim, lineHeight: 18 },
+  card:             { backgroundColor: c.card, borderRadius: 14, padding: 22, borderWidth: 1, borderColor: c.border },
+  cardTitle:        { fontSize: 18, fontWeight: "700", color: c.text, marginBottom: 6 },
+  cardHint:         { fontSize: 13, color: c.textMid, lineHeight: 19, marginBottom: 20 },
+  emailHighlight:   { color: c.accent, fontWeight: "600" },
+  // Form
+  label:            { fontSize: 12, color: c.textMid, marginBottom: 6, fontWeight: "600" },
+  input:            { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 13, color: c.text, fontSize: 15 },
+  btn:              { backgroundColor: c.accent, borderRadius: 8, padding: 14, alignItems: "center", marginTop: 18 },
+  btnDisabled:      { opacity: 0.5 },
+  btnText:          { color: "#fff", fontWeight: "700", fontSize: 15 },
+  // OTP code input
+  codeInput:        { backgroundColor: c.bg, borderWidth: 2, borderColor: c.accent, borderRadius: 10, padding: 16, fontSize: 32, fontWeight: "700", color: c.text, letterSpacing: 12, marginBottom: 4, marginTop: 6 },
+  // Resend
+  resendRow:        { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 18, gap: 8 },
+  resendSep:        { color: c.textDim },
+  resendLink:       { fontSize: 13, color: c.accent, fontWeight: "600" },
+  resendCountdown:  { fontSize: 13, color: c.textDim },
+  // Footer
+  footerHint:       { marginTop: 20, textAlign: "center", fontSize: 12, color: c.textDim, lineHeight: 18 },
 });

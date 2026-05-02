@@ -1,55 +1,40 @@
 /**
  * Auth abstraction layer.
- * All screens call these functions — never touch supabase.auth directly.
  *
- * Phase 1 (now):  email + password
- * Phase 2 (soon): phone OTP — swap signIn/signUp internals here, zero screen changes
- * Phase 3 (later): WhatsApp OTP via gateway — swap here again
+ * Current flow: email OTP (6-digit code sent to inbox).
+ * Works for teachers (invited by admin) and students (added to CRM).
+ * No passwords — Supabase creates the account on first OTP if it doesn't exist.
+ *
+ * Supabase dashboard requirement:
+ *   Auth → Sign In / Up → Email → enable "Email OTP" (not magic link)
+ *
+ * Phase 3 (later): WhatsApp / SMS OTP — swap sendOtp/verifyOtp internals here.
  */
 
 import { supabase } from "./supabase";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Email OTP ────────────────────────────────────────────────────────────────
 
-export type AuthMethod = "email" | "phone";
-
-export interface SignInParams {
-  method: AuthMethod;
-  email?: string;
-  password?: string;
-  phone?: string;   // e.g. "+919876543210"
-  otp?: string;     // for phone OTP verify step
-}
-
-// ─── Sign in ─────────────────────────────────────────────────────────────────
-
-export async function signIn(params: SignInParams) {
-  if (params.method === "phone") {
-    if (params.otp) {
-      // Phase 2: verify OTP
-      return supabase.auth.verifyOtp({
-        phone: params.phone!,
-        token: params.otp,
-        type: "sms",
-      });
-    }
-    // Phase 2: send OTP
-    return supabase.auth.signInWithOtp({ phone: params.phone! });
-  }
-
-  // Phase 1: email + password (current)
-  return supabase.auth.signInWithPassword({
-    email: params.email!,
-    password: params.password!,
+/**
+ * Send a 6-digit OTP to the given email address.
+ * Creates the Supabase user if it doesn't exist yet (shouldCreateUser: true).
+ */
+export async function sendEmailOtp(email: string) {
+  return supabase.auth.signInWithOtp({
+    email: email.trim().toLowerCase(),
+    options: { shouldCreateUser: true },
   });
 }
 
-// ─── Sign up ─────────────────────────────────────────────────────────────────
-
-export async function signUp(params: { email: string; password: string }) {
-  return supabase.auth.signUp({
-    email: params.email,
-    password: params.password,
+/**
+ * Verify the 6-digit code the user typed.
+ * On success Supabase sets the session — AppNavigator's auth listener fires.
+ */
+export async function verifyEmailOtp(email: string, token: string) {
+  return supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token: token.trim(),
+    type: "email",
   });
 }
 
