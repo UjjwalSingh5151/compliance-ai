@@ -16,6 +16,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- xlsx loaded from CDN — avoids CommonJS bundling issues with Vite 6 -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

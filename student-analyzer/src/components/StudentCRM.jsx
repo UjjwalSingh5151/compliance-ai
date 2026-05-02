@@ -7,8 +7,8 @@ function parseExcel(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        // Try to import xlsx dynamically
-        import("xlsx").then(({ read, utils }) => {
+        // xlsx is loaded from CDN as window.XLSX (see index.html)
+        Promise.resolve(window.XLSX).then(({ read, utils }) => {
           const wb = read(e.target.result, { type: "array" });
           const ws = wb.Sheets[wb.SheetNames[0]];
           const rows = utils.sheet_to_json(ws, { defval: "" });

@@ -383,7 +383,7 @@ export default function Analytics({ isMobile, schoolRole }) {
             <div style={{ display: "flex", gap: 2, marginBottom: 20, borderBottom: `1px solid ${c.border}` }}>
               {[["overview", "Overview"], ["teachers", "By Teacher"]].map(([id, label]) => (
                 <button key={id} onClick={() => setTab(id)}
-                  style={{ ...btn.ghost, padding: "8px 16px", fontSize: 13, borderRadius: "6px 6px 0 0", borderBottom: "none",
+                  style={{ ...btn.ghost, padding: "8px 16px", fontSize: 13, borderRadius: "6px 6px 0 0",
                     color: tab === id ? c.accent : c.textMid, fontWeight: tab === id ? 700 : 400,
                     borderBottom: tab === id ? `2px solid ${c.accent}` : "2px solid transparent" }}>
                   {label}

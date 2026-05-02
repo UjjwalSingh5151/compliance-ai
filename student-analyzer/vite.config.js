@@ -5,11 +5,17 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
-    // In dev, proxy /api to the local backend
     proxy: {
       "/api": { target: "http://localhost:3001", changeOrigin: true },
     },
   },
-  // In production the frontend is served by Express on the same origin,
-  // so /api calls work without any proxy or VITE_API_URL.
+  optimizeDeps: {
+    // xlsx ships as CommonJS — Vite 6 needs explicit pre-bundling hint
+    include: ["xlsx"],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/xlsx/, /node_modules/],
+    },
+  },
 });
