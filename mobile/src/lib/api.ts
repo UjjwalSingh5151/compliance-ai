@@ -152,6 +152,18 @@ export const api = {
     request<{ student: any; results: any[] }>("/api/student/results"),
   getStudentResult: (id: string) =>
     request<{ result: any; practiceSet: any | null }>(`/api/student/results/${id}`),
+  generateRevisionNotes: (id: string) =>
+    request<{ notes: string }>(`/api/student/results/${id}/revision-notes`, { method: "POST" }),
+  generatePracticeQuestions: (id: string, refresh = false) =>
+    request<{ practiceSetId: string; questions: any[] }>(
+      `/api/student/results/${id}/practice-questions`,
+      { method: "POST", body: JSON.stringify({ refresh }) }
+    ),
+  submitPracticeAttempt: (practiceSetId: string, answers: { no: number; selected: string }[]) =>
+    request<{ score: number; total: number; results: any[] }>(
+      `/api/student/practice/${practiceSetId}/attempt`,
+      { method: "POST", body: JSON.stringify({ answers }) }
+    ),
 
   // Public share — no auth, used by ShareResultScreen
   getShare: async (token: string): Promise<{ result: any }> => {
