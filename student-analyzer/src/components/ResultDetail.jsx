@@ -279,7 +279,15 @@ export default function ResultDetail({ params, navigate, isMobile }) {
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
           <ScoreRing pct={pct} small={isMobile || hasSheet} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: hasSheet ? 15 : 18, fontWeight: 700, color: c.text }}>{student?.name || "Unknown Student"}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 2 }}>
+              <span style={{ fontSize: hasSheet ? 15 : 18, fontWeight: 700, color: c.text }}>{student?.name || "Unknown Student"}</span>
+              {!result.student_id && (
+                <span style={{ fontSize: 11, background: `${c.warning}18`, color: c.warning, padding: "2px 8px", borderRadius: 10, fontWeight: 600, border: `1px solid ${c.warning}40`, cursor: "pointer" }}
+                  onClick={() => setShowAssign(true)}>
+                  ⚠ Unassigned — click to assign
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: 12, color: c.textMid, marginTop: 2 }}>
               {student?.roll_no && <span style={{ marginRight: 10 }}>Roll: {student.roll_no}</span>}
               {student?.class && <span>Class: {student.class}{student.section ? `-${student.section}` : ""}</span>}

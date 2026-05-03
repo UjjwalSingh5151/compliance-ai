@@ -13,12 +13,116 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, TextInput, Share,
+  TouchableOpacity, Alert, TextInput, Share, Modal, FlatList,
 } from "react-native";
 import { WebView } from "react-native-webview";
-import { api } from "../lib/api";
+import { api, Student } from "../lib/api";
 import { c } from "../lib/theme";
 import { shareUrl } from "../lib/branding";
+
+// ─── Student assign modal ─────────────────────────────────────────────────────
+function AssignModal({ resultId, onAssign, onClose }: {
+  resultId: string;
+  onAssign: (student: Student) => void;
+  onClose: () => void;
+}) {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [search, setSearch]     = useState("");
+  const [loading, setLoading]   = useState(true);
+  const [assigning, setAssigning] = useState(false);
+
+  useEffect(() => {
+    api.getSchoolStudents()
+      .then(({ students }) => setStudents(students || []))
+      .catch((e) => Alert.alert("Error", e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = students.filter((s) => {
+    const q = search.toLowerCase();
+    return !q
+      || (s.name || "").toLowerCase().includes(q)
+      || (s.roll_no || "").toLowerCase().includes(q)
+      || (s.class || "").toLowerCase().includes(q);
+  });
+
+  const assign = async (student: Student) => {
+    setAssigning(true);
+    try {
+      await api.assignResult(resultId, student.id);
+      onAssign(student);
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+      setAssigning(false);
+    }
+  };
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <View style={mStyles.overlay}>
+        <View style={mStyles.sheet}>
+          {/* Handle + header */}
+          <View style={mStyles.handle} />
+          <View style={mStyles.sheetHeader}>
+            <Text style={mStyles.sheetTitle}>Assign to Student</Text>
+            <TouchableOpacity onPress={onClose} style={mStyles.closeBtn}>
+              <Text style={mStyles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search */}
+          <View style={mStyles.searchWrap}>
+            <TextInput
+              style={mStyles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search by name, roll no or class…"
+              placeholderTextColor={c.textDim}
+              autoFocus
+              autoCorrect={false}
+            />
+          </View>
+
+          {/* List */}
+          {loading ? (
+            <View style={mStyles.loadingWrap}>
+              <ActivityIndicator color={c.accent} />
+            </View>
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={(s) => s.id}
+              contentContainerStyle={{ padding: 12, paddingTop: 4, paddingBottom: 32 }}
+              ListEmptyComponent={
+                <Text style={mStyles.emptyText}>{search ? "No students match your search" : "No students in CRM"}</Text>
+              }
+              renderItem={({ item: s }) => (
+                <TouchableOpacity
+                  style={mStyles.studentRow}
+                  onPress={() => assign(s)}
+                  disabled={assigning}
+                >
+                  <View style={mStyles.studentAvatar}>
+                    <Text style={mStyles.studentAvatarText}>
+                      {(s.name || "?").slice(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={mStyles.studentName}>{s.name || "Unknown"}</Text>
+                    <Text style={mStyles.studentMeta}>
+                      {[s.roll_no && `Roll: ${s.roll_no}`, s.class && `Class ${s.class}`].filter(Boolean).join("  ·  ")}
+                    </Text>
+                  </View>
+                  {assigning && <ActivityIndicator size="small" color={c.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 // ─── Score ring ───────────────────────────────────────────────────────────────
 function ScoreRing({ pct }: { pct: number }) {
@@ -137,6 +241,7 @@ export default function ResultDetailScreen({ route, navigation }: any) {
   const [comments, setComments] = useState<Record<string, string>>({});
   const [saving, setSaving]     = useState(false);
   const [tab, setTab]           = useState<"analysis" | "sheet">("analysis");
+  const [showAssign, setShowAssign] = useState(false);
 
   useEffect(() => {
     api.getResult(resultId)
@@ -257,6 +362,18 @@ export default function ResultDetailScreen({ route, navigation }: any) {
         />
       )}
 
+      {/* Assign modal */}
+      {showAssign && (
+        <AssignModal
+          resultId={resultId}
+          onAssign={(s) => {
+            setResult((r: any) => ({ ...r, student_id: s.id, analyzer_students: s }));
+            setShowAssign(false);
+          }}
+          onClose={() => setShowAssign(false)}
+        />
+      )}
+
       {/* Analysis tab */}
       {tab === "analysis" && (
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -264,7 +381,16 @@ export default function ResultDetailScreen({ route, navigation }: any) {
           <View style={styles.scoreCard}>
             <ScoreRing pct={pct} />
             <View style={styles.scoreInfo}>
-              <Text style={styles.studentName}>{student.name || a.student?.name || "Unknown student"}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <Text style={[styles.studentName, { marginBottom: 0 }]}>
+                  {student.name || a.student?.name || "Unknown student"}
+                </Text>
+                {!result.student_id && (
+                  <View style={styles.unassignedBadge}>
+                    <Text style={styles.unassignedText}>Unassigned</Text>
+                  </View>
+                )}
+              </View>
               <View style={styles.metaRow}>
                 {(student.roll_no || a.student?.roll_no) && (
                   <Text style={styles.metaChip}>Roll: {student.roll_no || a.student?.roll_no}</Text>
@@ -276,6 +402,12 @@ export default function ResultDetailScreen({ route, navigation }: any) {
               <Text style={[styles.bigMarks, { color: scoreColor }]}>
                 {obtained} <Text style={styles.bigMarksTotal}>/ {total} marks</Text>
               </Text>
+              {/* Assign button */}
+              <TouchableOpacity style={styles.assignBtn} onPress={() => setShowAssign(true)}>
+                <Text style={styles.assignBtnText}>
+                  {result.student_id ? "👤 Reassign" : "👤 Assign to student"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -402,4 +534,29 @@ const styles = StyleSheet.create({
   qBoxText:         { fontSize: 13, color: c.textMid, lineHeight: 20 },
   commentInput:     { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 10, fontSize: 13, color: c.text, minHeight: 60, textAlignVertical: "top", fontFamily: "System" },
   purple:           c.purple,
+  // Unassigned badge + assign button
+  unassignedBadge:  { backgroundColor: `${c.warning}20`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: `${c.warning}40` },
+  unassignedText:   { fontSize: 10, color: c.warning, fontWeight: "700" },
+  assignBtn:        { marginTop: 8, alignSelf: "flex-start", backgroundColor: `${c.accent}15`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: `${c.accent}40` },
+  assignBtnText:    { fontSize: 12, color: c.accent, fontWeight: "600" },
+});
+
+// ─── Assign modal styles ──────────────────────────────────────────────────────
+const mStyles = StyleSheet.create({
+  overlay:          { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+  sheet:            { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", borderWidth: 1, borderColor: c.border },
+  handle:           { width: 40, height: 4, backgroundColor: c.border, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
+  sheetHeader:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: c.border },
+  sheetTitle:       { fontSize: 15, fontWeight: "700", color: c.text },
+  closeBtn:         { width: 32, height: 32, borderRadius: 16, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" },
+  closeBtnText:     { fontSize: 14, color: c.textMid },
+  searchWrap:       { padding: 12, paddingBottom: 4 },
+  searchInput:      { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 11, fontSize: 14, color: c.text },
+  loadingWrap:      { padding: 32, alignItems: "center" },
+  emptyText:        { textAlign: "center", color: c.textDim, fontSize: 13, padding: 24 },
+  studentRow:       { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: c.border, marginBottom: 8, backgroundColor: c.bg },
+  studentAvatar:    { width: 38, height: 38, borderRadius: 19, backgroundColor: c.accentDim, alignItems: "center", justifyContent: "center" },
+  studentAvatarText:{ fontSize: 12, fontWeight: "700", color: c.accent },
+  studentName:      { fontSize: 14, fontWeight: "600", color: c.text },
+  studentMeta:      { fontSize: 12, color: c.textMid, marginTop: 2 },
 });

@@ -1,24 +1,24 @@
 /**
  * ProfileScreen
  *
- * Teacher mode  — shows CRM record (name, subject, classes) + school info.
- * Student mode  — shows CRM record (name, class, roll_no) + roll-no tip.
+ * Teacher mode  — shows CRM record (name, subjects, classes) + school.
+ *                 Teachers can edit their own name, subjects, classes.
+ * Student mode  — shows CRM record (name, class, roll_no). Read-only.
  *
- * Opened from the 👤 icon in the HomeScreen / StudentHomeScreen header.
- * Role is determined here by trying both endpoints; no param needed.
+ * Opened from the 👤 icon in HomeScreen / StudentHomeScreen header.
  */
 
 import React, { useEffect, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, TextInput,
 } from "react-native";
-import { api } from "../lib/api";
+import { api, TeacherProfile } from "../lib/api";
 import { signOut } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { c } from "../lib/theme";
 
-// ─── Small helper row ─────────────────────────────────────────────────────────
+// ─── Small display row ────────────────────────────────────────────────────────
 function InfoRow({ label, value, dim }: { label: string; value?: string | null; dim?: boolean }) {
   if (!value) return null;
   return (
@@ -29,7 +29,6 @@ function InfoRow({ label, value, dim }: { label: string; value?: string | null; 
   );
 }
 
-// ─── Section card ─────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.section}>
@@ -39,34 +38,57 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function ProfileScreen({ navigation }: any) {
-  const [loading, setLoading]       = useState(true);
-  const [authEmail, setAuthEmail]   = useState<string | null>(null);
-  const [school, setSchool]         = useState<any>(null);
-  const [teacher, setTeacher]       = useState<any>(null);   // null = no CRM record or not a teacher
-  const [student, setStudent]       = useState<any>(null);   // null = not a student
+// ─── Editable field ───────────────────────────────────────────────────────────
+function EditRow({ label, value, onChange, placeholder, hint }: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; hint?: string;
+}) {
+  return (
+    <View style={styles.editRow}>
+      <Text style={styles.editLabel}>{label}</Text>
+      <TextInput
+        style={styles.editInput}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder || ""}
+        placeholderTextColor={c.textDim}
+        autoCorrect={false}
+      />
+      {hint && <Text style={styles.editHint}>{hint}</Text>}
+    </View>
+  );
+}
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
+export default function ProfileScreen({ navigation }: any) {
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [school, setSchool]       = useState<any>(null);
+  const [teacher, setTeacher]     = useState<TeacherProfile | null>(null);
+  const [student, setStudent]     = useState<any>(null);
+
+  // Edit mode state (teachers only)
+  const [editing, setEditing]     = useState(false);
+  const [editName, setEditName]   = useState("");
+  const [editSubjects, setEditSubjects] = useState(""); // comma-separated string
+  const [editClasses, setEditClasses]   = useState(""); // comma-separated string
+
+  useEffect(() => { loadProfile(); }, []);
 
   const loadProfile = async () => {
     setLoading(true);
     try {
-      // Get auth email
       const { data: { session } } = await supabase.auth.getSession();
       setAuthEmail(session?.user?.email ?? null);
 
-      // Try teacher path
       const [schoolRes, teacherRes] = await Promise.allSettled([
         api.getMySchool(),
         api.getMyTeacherProfile(),
       ]);
-      if (schoolRes.status === "fulfilled") {
-        setSchool(schoolRes.value.school ?? null);
-        if (teacherRes.status === "fulfilled") {
-          setTeacher(teacherRes.value.teacher ?? null);
-        }
+      if (schoolRes.status === "fulfilled" && schoolRes.value.school) {
+        setSchool(schoolRes.value.school);
+        const t = teacherRes.status === "fulfilled" ? teacherRes.value.teacher : null;
+        setTeacher(t);
       } else {
         // Not a teacher — try student path
         const studentRes = await api.getStudentMe().catch(() => null);
@@ -76,6 +98,32 @@ export default function ProfileScreen({ navigation }: any) {
       Alert.alert("Error", e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startEditing = () => {
+    setEditName(teacher?.name || "");
+    setEditSubjects((teacher?.subjects || []).join(", "));
+    setEditClasses((teacher?.classes || []).join(", "));
+    setEditing(true);
+  };
+
+  const cancelEditing = () => setEditing(false);
+
+  const saveProfile = async () => {
+    const trimmedName = editName.trim();
+    if (!trimmedName) { Alert.alert("Name required", "Please enter your name."); return; }
+    setSaving(true);
+    try {
+      const subjects = editSubjects.split(",").map((s) => s.trim()).filter(Boolean);
+      const classes  = editClasses.split(",").map((s) => s.trim()).filter(Boolean);
+      const { teacher: updated } = await api.updateMyTeacherProfile({ name: trimmedName, subjects, classes });
+      setTeacher(updated);
+      setEditing(false);
+    } catch (e: any) {
+      Alert.alert("Save failed", e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -95,31 +143,52 @@ export default function ProfileScreen({ navigation }: any) {
 
   const isTeacher = !!school;
   const isStudent = !!student;
+  const displayName = isTeacher
+    ? (teacher?.name || authEmail || "Teacher")
+    : (student?.name || authEmail || "Student");
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Profile</Text>
-        <View style={{ width: 52 }} />
+        {editing ? (
+          <TouchableOpacity onPress={cancelEditing}>
+            <Text style={styles.headerAction}>Cancel</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.headerAction}>← Back</Text>
+          </TouchableOpacity>
+        )}
+
+        <Text style={styles.headerTitle}>{editing ? "Edit Profile" : "My Profile"}</Text>
+
+        {/* Edit button — only teachers with a CRM record */}
+        {!editing && isTeacher && teacher && (
+          <TouchableOpacity onPress={startEditing} style={styles.editBtn}>
+            <Text style={styles.editBtnText}>✏️ Edit</Text>
+          </TouchableOpacity>
+        )}
+        {editing && (
+          <TouchableOpacity
+            onPress={saveProfile}
+            disabled={saving}
+            style={[styles.saveBtn, saving && { opacity: 0.5 }]}
+          >
+            <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
+          </TouchableOpacity>
+        )}
+        {!editing && (!isTeacher || !teacher) && <View style={{ width: 64 }} />}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
         {/* Avatar / identity */}
         <View style={styles.avatarCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarLetter}>
-              {(isTeacher ? (teacher?.name || authEmail) : (student?.name || authEmail) || "?")
-                .charAt(0).toUpperCase()}
-            </Text>
+            <Text style={styles.avatarLetter}>{displayName.charAt(0).toUpperCase()}</Text>
           </View>
-          <Text style={styles.avatarName}>
-            {isTeacher ? (teacher?.name || "Teacher") : (student?.name || "Student")}
-          </Text>
+          <Text style={styles.avatarName}>{displayName}</Text>
           <Text style={styles.avatarEmail}>{authEmail}</Text>
           <View style={[styles.rolePill, { backgroundColor: isTeacher ? `${c.accent}20` : `${c.success}20` }]}>
             <Text style={[styles.roleText, { color: isTeacher ? c.accent : c.success }]}>
@@ -128,17 +197,44 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* ── Teacher info ── */}
+        {/* ── Teacher info ─────────────────────────────────────────────────────── */}
         {isTeacher && (
           <>
             {teacher ? (
-              <Section title="YOUR DETAILS">
-                <InfoRow label="Name"       value={teacher.name} />
-                <InfoRow label="Subject"    value={teacher.subject} />
-                <InfoRow label="Class"      value={teacher.class_assigned || teacher.class} />
-                <InfoRow label="Phone"      value={teacher.phone} dim />
-                <InfoRow label="Email"      value={teacher.email || authEmail} dim />
-              </Section>
+              editing ? (
+                /* ── Edit mode ── */
+                <Section title="EDIT YOUR DETAILS">
+                  <EditRow label="Name *" value={editName} onChange={setEditName} placeholder="Your full name" />
+                  <EditRow
+                    label="Subjects"
+                    value={editSubjects}
+                    onChange={setEditSubjects}
+                    placeholder="e.g. Maths, Science"
+                    hint="Separate multiple subjects with commas"
+                  />
+                  <EditRow
+                    label="Classes"
+                    value={editClasses}
+                    onChange={setEditClasses}
+                    placeholder="e.g. 10A, 10B, 11"
+                    hint="Separate multiple classes with commas"
+                  />
+                  <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                    <Text style={styles.infoLabel}>Email</Text>
+                    <Text style={[styles.infoValue, { color: c.textDim, fontSize: 12 }]}>
+                      {teacher.email || authEmail}{"\n"}(not editable)
+                    </Text>
+                  </View>
+                </Section>
+              ) : (
+                /* ── View mode ── */
+                <Section title="YOUR DETAILS">
+                  <InfoRow label="Name"     value={teacher.name} />
+                  <InfoRow label="Subjects" value={teacher.subjects?.join(", ")} />
+                  <InfoRow label="Classes"  value={teacher.classes?.join(", ")} />
+                  <InfoRow label="Email"    value={teacher.email || authEmail} dim />
+                </Section>
+              )
             ) : (
               <Section title="YOUR DETAILS">
                 <Text style={styles.noticeText}>
@@ -149,45 +245,39 @@ export default function ProfileScreen({ navigation }: any) {
               </Section>
             )}
 
-            <Section title="SCHOOL">
-              <InfoRow label="School name"  value={school?.name} />
-              <InfoRow label="Status"       value={school?.status} />
-              <InfoRow label="Your role"    value={school ? "Teacher" : "—"} dim />
-            </Section>
-
-            <View style={styles.notice}>
-              <Text style={styles.noticeText}>
-                ✏️  To update your name, subject or class assignment, ask your school admin to edit your record in the web portal.
-              </Text>
-            </View>
+            {!editing && (
+              <Section title="SCHOOL">
+                <InfoRow label="School name" value={school?.name} />
+                <InfoRow label="Status"      value={school?.status} />
+              </Section>
+            )}
           </>
         )}
 
-        {/* ── Student info ── */}
+        {/* ── Student info ─────────────────────────────────────────────────────── */}
         {isStudent && (
           <>
             <Section title="YOUR DETAILS">
-              <InfoRow label="Name"         value={student.name} />
-              <InfoRow label="Class"        value={student.class} />
-              <InfoRow label="Section"      value={student.section} />
-              <InfoRow label="Roll Number"  value={student.roll_no} />
+              <InfoRow label="Name"          value={student.name} />
+              <InfoRow label="Class"         value={student.class} />
+              <InfoRow label="Section"       value={student.section} />
+              <InfoRow label="Roll Number"   value={student.roll_no} />
               <InfoRow label="Academic Year" value={student.academic_year} dim />
-              <InfoRow label="Email"        value={student.email || authEmail} dim />
+              <InfoRow label="Email"         value={student.email || authEmail} dim />
             </Section>
 
-            {student.roll_no && (
+            {student.roll_no ? (
               <View style={[styles.notice, { borderColor: `${c.accent}30`, backgroundColor: `${c.accent}0C` }]}>
                 <Text style={[styles.noticeText, { color: c.accent }]}>
-                  📝  Your roll number is <Text style={{ fontWeight: "700" }}>{student.roll_no}</Text>.
-                  Make sure this matches exactly what you write on your answer sheets so your results are linked automatically.
+                  📝  Your roll number is{" "}
+                  <Text style={{ fontWeight: "700" }}>{student.roll_no}</Text>.
+                  {" "}Write this exactly on your answer sheets so results are linked automatically.
                 </Text>
               </View>
-            )}
-
-            {!student.roll_no && (
+            ) : (
               <View style={styles.notice}>
                 <Text style={styles.noticeText}>
-                  ⚠️  No roll number on file. Ask your school admin to add your roll number so answer sheets can be auto-linked to your account.
+                  ⚠️  No roll number on file. Ask your school admin to add your roll number so answer sheets can be auto-linked.
                 </Text>
               </View>
             )}
@@ -217,9 +307,14 @@ export default function ProfileScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: c.bg },
   center:       { alignItems: "center", justifyContent: "center" },
+  // Header
   header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, paddingTop: 52, borderBottomWidth: 1, borderBottomColor: c.border },
-  backText:     { fontSize: 14, color: c.accent, minWidth: 52 },
+  headerAction: { fontSize: 14, color: c.accent, minWidth: 64 },
   headerTitle:  { fontSize: 16, fontWeight: "700", color: c.text },
+  editBtn:      { backgroundColor: `${c.accent}18`, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: `${c.accent}40` },
+  editBtnText:  { fontSize: 13, color: c.accent, fontWeight: "600" },
+  saveBtn:      { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6 },
+  saveBtnText:  { fontSize: 13, color: "#fff", fontWeight: "700" },
   scroll:       { padding: 20, paddingBottom: 48 },
   // Avatar
   avatarCard:   { alignItems: "center", marginBottom: 24 },
@@ -232,10 +327,15 @@ const styles = StyleSheet.create({
   // Section
   section:      { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 12 },
   sectionTitle: { fontSize: 11, fontWeight: "700", color: c.textDim, letterSpacing: 0.8, marginBottom: 12 },
-  // Info row
+  // Info row (view mode)
   infoRow:      { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: c.border },
   infoLabel:    { fontSize: 13, color: c.textMid, flex: 1 },
   infoValue:    { fontSize: 13, color: c.text, fontWeight: "600", flex: 2, textAlign: "right" },
+  // Edit row (edit mode)
+  editRow:      { marginBottom: 14 },
+  editLabel:    { fontSize: 12, color: c.textMid, fontWeight: "600", marginBottom: 6 },
+  editInput:    { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 12, fontSize: 14, color: c.text },
+  editHint:     { fontSize: 11, color: c.textDim, marginTop: 4 },
   // Notice
   notice:       { backgroundColor: `${c.warning}12`, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: `${c.warning}30`, marginBottom: 12 },
   noticeText:   { fontSize: 12, color: c.textMid, lineHeight: 18 },

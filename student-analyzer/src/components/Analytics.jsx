@@ -171,6 +171,83 @@ function PlanModal({ data, onClose, isMobile }) {
   );
 }
 
+// ─── Per-student breakdown table ─────────────────────────────────────────────
+function AllStudentsTable({ students, isMobile }) {
+  const [expanded, setExpanded] = useState(null); // roll/name key of expanded row
+
+  if (!students?.length) return null;
+
+  return (
+    <div style={{ ...card, marginBottom: 20 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: c.textMid, marginBottom: 12, letterSpacing: 0.5 }}>
+        ALL STUDENTS ({students.length})
+      </div>
+
+      {/* Header row */}
+      <div style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: `1px solid ${c.border}`, marginBottom: 4 }}>
+        <div style={{ flex: 1, fontSize: 11, color: c.textDim, fontWeight: 600 }}>STUDENT</div>
+        {!isMobile && <div style={{ width: 60, fontSize: 11, color: c.textDim, fontWeight: 600, textAlign: "center" }}>TESTS</div>}
+        <div style={{ width: 70, fontSize: 11, color: c.textDim, fontWeight: 600, textAlign: "right" }}>AVG</div>
+        <div style={{ width: 20 }} />
+      </div>
+
+      {students.map((s, i) => {
+        const key = s.roll || s.name || i;
+        const isOpen = expanded === key;
+        return (
+          <div key={key}>
+            {/* Student row */}
+            <div
+              onClick={() => setExpanded(isOpen ? null : key)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "9px 0",
+                borderBottom: `1px solid ${c.border}`, cursor: s.testBreakdown?.length > 0 ? "pointer" : "default",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s.name}
+                </div>
+                <div style={{ fontSize: 11, color: c.textDim, marginTop: 1 }}>
+                  {s.roll && <span style={{ marginRight: 8 }}>Roll: {s.roll}</span>}
+                  {s.class && <span>Class {s.class}</span>}
+                </div>
+              </div>
+              {!isMobile && (
+                <div style={{ width: 60, textAlign: "center", fontSize: 13, color: c.textMid }}>{s.testCount}</div>
+              )}
+              <div style={{ width: 70, textAlign: "right" }}>
+                <ScoreBadge score={s.avg} />
+              </div>
+              <div style={{ width: 20, textAlign: "center", fontSize: 12, color: c.textDim }}>
+                {s.testBreakdown?.length > 0 ? (isOpen ? "▲" : "▼") : ""}
+              </div>
+            </div>
+
+            {/* Per-test breakdown */}
+            {isOpen && s.testBreakdown?.length > 0 && (
+              <div style={{ background: c.bg, borderLeft: `2px solid ${c.border}`, marginLeft: 8, marginBottom: 4, borderRadius: "0 0 6px 6px" }}>
+                {s.testBreakdown.map((t, ti) => (
+                  <div key={ti} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 12px", borderBottom: ti < s.testBreakdown.length - 1 ? `1px solid ${c.border}` : "none" }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: c.text, fontWeight: 500 }}>{t.testName}</div>
+                      <div style={{ fontSize: 11, color: c.textDim, marginTop: 1 }}>
+                        {t.subject && <span style={{ marginRight: 6 }}>{t.subject}</span>}
+                        <span>{t.marks}/{t.total} marks</span>
+                      </div>
+                    </div>
+                    <ScoreBadge score={t.score} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Teacher drill-down view ──────────────────────────────────────────────────
 function TeacherDetail({ teacherId, teacherName, onBack, isMobile }) {
   const [data, setData] = useState(null);
@@ -246,32 +323,9 @@ function TeacherDetail({ teacherId, teacherName, onBack, isMobile }) {
         </div>
       </div>
 
-      {/* Top / Needs attention students */}
-      {(data.topStudents?.length > 0 || data.needsAttention?.length > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 20 }}>
-          {data.topStudents?.length > 0 && (
-            <div style={card}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.accent, marginBottom: 10, letterSpacing: 0.5 }}>TOP STUDENTS</div>
-              {data.topStudents.map((s, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${c.border}` }}>
-                  <span style={{ fontSize: 13, color: c.text }}>{s.name}</span>
-                  <ScoreBadge score={s.avg} />
-                </div>
-              ))}
-            </div>
-          )}
-          {data.needsAttention?.length > 0 && (
-            <div style={card}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.warning, marginBottom: 10, letterSpacing: 0.5 }}>NEEDS ATTENTION</div>
-              {data.needsAttention.map((s, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${c.border}` }}>
-                  <span style={{ fontSize: 13, color: c.text }}>{s.name}</span>
-                  <ScoreBadge score={s.avg} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* All students — per-student breakdown */}
+      {data.allStudents?.length > 0 && (
+        <AllStudentsTable students={data.allStudents} isMobile={isMobile} />
       )}
 
       {/* Test list */}

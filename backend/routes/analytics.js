@@ -144,22 +144,46 @@ router.get("/teacher/:teacherId", requireSchool, async (req, res) => {
     if (testIds.length) {
       const { data } = await supabaseAdmin
         .from("analyzer_results")
-        .select("id, test_id, marks_obtained, total_marks, analysis, analyzed_at, analyzer_students(name, roll_no, class)")
+        .select("id, test_id, marks_obtained, total_marks, analysis, analyzed_at, analyzer_students(id, name, roll_no, class)")
         .in("test_id", testIds);
       results = data || [];
     }
 
-    // Per-student performance
-    const studentMap = {};
+    // Per-student performance with full per-test breakdown
+    const studentMap: Record<string, any> = {};
     for (const r of results) {
-      const name = r.analyzer_students?.name || "Unknown";
-      const key = r.analyzer_students?.roll_no || name;
-      if (!studentMap[key]) studentMap[key] = { name, roll: r.analyzer_students?.roll_no, scores: [] };
-      studentMap[key].scores.push(pct(r.marks_obtained, r.total_marks));
+      const sName = r.analyzer_students?.name || r.analysis?.student?.name || "Unknown";
+      const key = r.analyzer_students?.id || r.analyzer_students?.roll_no || sName;
+      if (!studentMap[key]) {
+        studentMap[key] = {
+          name: sName,
+          roll: r.analyzer_students?.roll_no || r.analysis?.student?.roll_no,
+          class: r.analyzer_students?.class || r.analysis?.student?.class,
+          scores: [],
+          testBreakdown: [],
+        };
+      }
+      const scorePct = pct(r.marks_obtained, r.total_marks);
+      studentMap[key].scores.push(scorePct);
+      const test = (tests || []).find((t) => t.id === r.test_id);
+      studentMap[key].testBreakdown.push({
+        resultId: r.id,
+        testId: r.test_id,
+        testName: test?.name || "Unknown test",
+        subject: test?.subject,
+        marks: r.marks_obtained,
+        total: r.total_marks,
+        score: scorePct,
+        analyzedAt: r.analyzed_at,
+      });
     }
     const studentList = Object.values(studentMap)
-      .map((s) => ({ ...s, avg: Math.round(s.scores.reduce((a, b) => a + b, 0) / s.scores.length) }))
-      .sort((a, b) => b.avg - a.avg);
+      .map((s: any) => ({
+        ...s,
+        avg: Math.round(s.scores.reduce((a: number, b: number) => a + b, 0) / s.scores.length),
+        testCount: s.scores.length,
+      }))
+      .sort((a: any, b: any) => b.avg - a.avg);
 
     res.json({
       teacher,
@@ -171,7 +195,8 @@ router.get("/teacher/:teacherId", requireSchool, async (req, res) => {
       topStrengths: topItems(results, "strengths"),
       topMistakes: topItems(results, "improvement_areas"),
       topStudents: studentList.slice(0, 5),
-      needsAttention: [...studentList].reverse().slice(0, 5),
+      needsAttention: studentList.length > 5 ? [...studentList].reverse().slice(0, 5) : [],
+      allStudents: studentList,
     });
   } catch (err) {
     console.error("Analytics /teacher/:id:", err);

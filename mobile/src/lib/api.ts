@@ -68,10 +68,9 @@ export interface Student {
 export interface TeacherProfile {
   id: string;
   name: string;
-  email: string;
-  subject?: string;
-  class_assigned?: string;
-  phone?: string;
+  email?: string;
+  subjects?: string[];   // e.g. ["Maths", "Science"]
+  classes?: string[];    // e.g. ["10A", "10B"]
   school_id: string;
 }
 
@@ -235,6 +234,17 @@ export const api = {
 
   // Teacher self-profile (CRM record matched by auth email)
   getMyTeacherProfile: () => request<{ teacher: TeacherProfile | null }>("/api/school/teachers/me"),
+  updateMyTeacherProfile: (updates: { name?: string; subjects?: string[]; classes?: string[] }) =>
+    request<{ teacher: TeacherProfile }>("/api/school/teachers/me", {
+      method: "PATCH", body: JSON.stringify(updates),
+    }),
+
+  // School student list — accessible by teachers for manual result assignment
+  getSchoolStudents: () => request<{ students: Student[] }>("/api/school/students"),
+  assignResult: (id: string, studentId: string | null) =>
+    request<{ ok: boolean; student: Student | null }>(`/api/analyzer/results/${id}/assign`, {
+      method: "PATCH", body: JSON.stringify({ studentId }),
+    }),
 
   // Analytics (shape varies by role — keeping loose intentionally)
   getMyAnalytics: () => request<Record<string, unknown>>("/api/analytics/me"),
