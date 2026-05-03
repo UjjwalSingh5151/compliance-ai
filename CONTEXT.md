@@ -1,6 +1,6 @@
 # EduGrade — Full Project Context
 > Feed this file to any new Claude thread, Cursor session, or AI tool to get full context.
-> Last updated: 2026-05-02
+> Last updated: 2026-05-03
 
 ---
 
@@ -124,15 +124,16 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ### Mobile Screens
 | Screen | Role | Purpose |
 |---|---|---|
-| `LoginScreen` | All | Email + password login |
-| `HomeScreen` | Teacher | New Paper / Add Notebook / View Copies + recent papers list |
-| `NewPaperScreen` | Teacher | 4-step flow: details → scan question paper → review → create |
-| `ScanScreen` | Teacher | Camera scanning of student answer notebooks |
+| `LoginScreen` | All | Email OTP login — step 1: email, step 2: 6-digit code (auto-submits) |
+| `HomeScreen` | Teacher | New Paper / Add Notebook / View Copies + recent papers list; 👤 profile icon top-right |
+| `NewPaperScreen` | Teacher | 5-step flow: capture QP → review → extracting (AI auto-fill) → details form → creating |
+| `ScanScreen` | Teacher | Multi-copy queue: capture pages → "Copy Done" → queue → "Analyze All (N)" |
 | `SelectTestScreen` | Teacher | Pick existing test to add notebook to |
-| `TestResultsScreen` | Teacher | All results for a test (stats bar + list) |
-| `ResultDetailScreen` | Teacher | Per-student: Answer Sheet tab + Analysis tab (Q-by-Q + teacher notes) |
+| `TestResultsScreen` | Teacher | All results for a test (stats bar + list); 🔗 share button per result |
+| `ResultDetailScreen` | Teacher | Per-student: Answer Sheet tab + Analysis tab (Q-by-Q + teacher notes); 🔗 share in header |
 | `CorrectedCopiesScreen` | Teacher | All papers grouped by class → subject → tests |
-| `StudentHomeScreen` | Student | Results grouped by subject, 3 action buttons per test |
+| `ProfileScreen` | Teacher+Student | CRM data (name, subject, class, roll_no, school); sign out |
+| `StudentHomeScreen` | Student | Results grouped by subject, 3 action buttons per test; 👤 profile icon top-right |
 | `StudentResultDetailScreen` | Student | 4 tabs: Analysis / Sheet / Notes / Practice Quiz |
 | `ShareResultScreen` | Public | Share link result — no auth needed, Q-by-Q read-only |
 | `UnknownRoleScreen` | Unknown | Sign out prompt for users not in the system |
@@ -152,11 +153,14 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 - No match → SchoolSetup
 
 ### Mobile
-- Same Supabase auth
+- **Email OTP auth** (no passwords) — `sendEmailOtp(email)` + `verifyEmailOtp(email, token)`
+- Supabase `signInWithOtp` + `verifyOtp({ type: "email" })` — OTP token length must be 6 digits (set in Supabase → Auth → Sign In/Providers → Email)
 - Role detection in `AppNavigator.tsx`:
   1. `api.getMySchool()` → approved → Teacher flow
   2. `api.getStudentMe()` → found → Student flow
   3. Neither → UnknownRoleScreen
+- Teacher profile: `GET /api/school/teachers/me` → matches by `req.user.email` ilike against `school_teachers`
+- Student profile: `GET /api/student/me`
 
 ---
 
@@ -172,6 +176,39 @@ Config:
 - iOS: `associatedDomains` in `app.json`, `apple-app-site-association`
   - **TODO:** Fill in Apple Team ID
 - Custom scheme fallback: `kelzo://share/{token}`
+
+---
+
+## NewPaperScreen Flow (current)
+
+Steps: `capture` → `review` → `extracting` → `details` → `creating`
+
+1. **capture** — Photograph question paper pages (or "Skip — fill details manually")
+2. **review** — Preview pages, confirm or retake
+3. **extracting** — Build PDF from photos → `POST /api/analyzer/extract-paper` → AI fills name, subject, marks, instructions
+4. **details** — Form: name*, subject, class, total marks*, teacher name, leniency (1-5), instructions (pre-filled if scanned)
+5. **creating** — Build PDF → `POST /api/analyzer/tests` → navigate to ScanScreen
+
+Leniency scale: `1=Strict`, `2=Firm`, `3=Balanced` (default), `4=Lenient`, `5=Very Lenient`
+Sent to backend as `leniency` integer; mapped to `LENIENCY_PROMPTS` in `backend/lib/shared.js`.
+
+---
+
+## ScanScreen Multi-Copy Queue (current)
+
+Steps: `capture` → `copies` → `uploading` → `results`
+
+```typescript
+interface Copy { id: string; pages: PhotoPage[] }
+interface ScanResult { copyId: string; copyNum: number; analysis: any; resultId?: string; shareToken?: string; error?: string; }
+```
+
+Key interactions:
+- "Copy Done" → appends copy to queue, back to `copies` step
+- ✏️ on a queued copy → loads pages back into camera step (`editingCopyId` state)
+- "Save Copy" (while editing) → replaces copy in-place, back to `copies`
+- "Analyze All (N)" → sequential: PDF per copy → SSE upload → collect results with `shareToken`
+- Results list shows 🔗 share button per copy (only if `shareToken` present)
 
 ---
 
@@ -342,17 +379,34 @@ RENDER_PROD_DEPLOY_HOOK      # same for production service
 
 ## Pending / TODO
 
+### Infrastructure
 - [ ] Fill SHA256 in `assetlinks.json` → run `eas credentials --platform android`
 - [ ] Fill Apple Team ID in `apple-app-site-association`
+- [ ] Set LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY on Render (both services)
+- [ ] Add GitHub Secrets RENDER_STAGING_DEPLOY_HOOK + RENDER_PROD_DEPLOY_HOOK
+- [ ] Set storage expiry policy in Supabase (answer sheets accumulate)
+
+### Cost optimisation
 - [ ] Implement prompt caching for question papers (60% Claude cost reduction)
 - [ ] Switch revision notes + practice to claude-haiku-3-5 (75% cost reduction)
 - [ ] Add OCR preprocessing pipeline (replaces vision tokens, 75% reduction)
-- [ ] Student deep link → open their result in app
+
+### Features
+- [ ] Profile screen editing — teachers can update their own CRM data (currently read-only)
+- [ ] Web portal: "Open in App" button on `ShareView` for deep link (`kelzo://share/:token`)
+- [ ] Web portal: AcceptInvite page (may be obsolete now OTP is live)
+- [ ] Student result assignment: manual assign flow when roll_no doesn't auto-match
+- [ ] Admin analytics: per-teacher breakdown on web portal
 - [ ] Play Store submission
 - [ ] Turn on Vercel Analytics (both projects)
-- [ ] Set storage expiry policy in Supabase (answer sheets accumulate)
-- [ ] Add GitHub Secrets RENDER_STAGING_DEPLOY_HOOK + RENDER_PROD_DEPLOY_HOOK
-- [ ] Set LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY on Render (both services)
+
+### Code quality (from QC scan)
+- [ ] Fix silent error handling in `Analytics.jsx` — no UI shown on API failure
+- [ ] Extract hardcoded `https://app.kelzo.ai` to a constant in mobile
+- [ ] Fix unhandled promise in `BulkUpload.jsx` SSE stream (user stuck on network failure)
+- [ ] Fix credit deduction happening before file validation in backend
+- [ ] Replace `any` types in `mobile/src/lib/api.ts` with proper interfaces
+- [ ] Add request logging middleware to backend
 
 ---
 
