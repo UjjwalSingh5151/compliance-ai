@@ -193,6 +193,7 @@ Instructions:
 2. For EACH question: copy the question text from the paper, read the student's answer, evaluate it.
 3. Keep all text fields under 40 words each — be concise but accurate.
 4. marks_obtained must equal the sum of all marks_awarded values.
+5. For each question, identify the concept_tag (specific topic/law/formula being tested, e.g. "Newton's third law", "photosynthesis", "quadratic equations") and cognitive_level (one of "recall", "application", or "analysis" — recall=memory/definition, application=using a concept to solve, analysis=multi-step reasoning/evaluation).
 
 IMPORTANT: Your entire response must be a single valid JSON object. No markdown, no explanation, no text outside the JSON.
 
@@ -215,7 +216,9 @@ IMPORTANT: Your entire response must be a single valid JSON object. No markdown,
       "marks_awarded": 8,
       "marks_available": 10,
       "feedback": "one sentence to student",
-      "is_correct": false
+      "is_correct": false,
+      "concept_tag": "Newton's third law",
+      "cognitive_level": "application"
     }
   ],
   "marks_obtained": 75,
@@ -448,6 +451,89 @@ router.patch("/results/:id/assign", async (req, res) => {
     }
     res.json({ ok: true, student });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /results/:id/mark-override
+// Teacher overrides the AI-awarded marks for a specific question.
+// Updates analysis.questions[n].marks_awarded + recalculates marks_obtained.
+// Logs to override_log table for fine-tuning dataset.
+//
+// SQL to create override_log table (run once in Supabase):
+// CREATE TABLE override_log (
+//   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+//   result_id uuid REFERENCES analyzer_results(id) ON DELETE CASCADE,
+//   question_no integer NOT NULL,
+//   subject text, class text, board text,
+//   question_text text, student_answer text, expected_answer text,
+//   ai_marks_awarded numeric, ai_marks_available numeric, ai_reasoning text,
+//   override_marks numeric NOT NULL, override_reason text,
+//   teacher_user_id uuid, school_id uuid,
+//   created_at timestamptz DEFAULT now()
+// );
+router.patch("/results/:id/mark-override", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.json({ ok: true });
+    const { questionNo, overrideMarks, overrideReason } = req.body;
+    if (questionNo == null || overrideMarks == null) {
+      return res.status(400).json({ error: "questionNo and overrideMarks required" });
+    }
+    const user = await getRequestUser(req);
+    const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
+
+    const { data: result, error: fetchErr } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("*, analyzer_tests(name, subject, class, created_by), analyzer_students(class)")
+      .eq("id", req.params.id).single();
+    if (fetchErr || !result) return res.status(404).json({ error: "Result not found" });
+
+    // Auth check
+    if (user && schoolInfo?.role === "teacher" && result.analyzer_tests?.created_by !== user.id) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const analysis = { ...(result.analysis || {}) };
+    const questions = [...(analysis.questions || [])];
+    const idx = questions.findIndex((q) => q.no === questionNo);
+    if (idx === -1) return res.status(404).json({ error: `Question ${questionNo} not found` });
+
+    const original = questions[idx];
+    const aiMarks = original.marks_awarded;
+
+    // Apply override
+    questions[idx] = { ...original, marks_awarded: Number(overrideMarks), teacher_override: true };
+    const newTotal = questions.reduce((s, q) => s + (q.marks_awarded || 0), 0);
+    analysis.questions = questions;
+    analysis.marks_obtained = newTotal;
+
+    const { error: updateErr } = await supabaseAdmin
+      .from("analyzer_results")
+      .update({ analysis, marks_obtained: newTotal })
+      .eq("id", req.params.id);
+    if (updateErr) throw updateErr;
+
+    // Log override async (never block the response)
+    supabaseAdmin.from("override_log").insert({
+      result_id: req.params.id,
+      question_no: questionNo,
+      subject: result.analyzer_tests?.subject || null,
+      class: result.analyzer_students?.class || result.analyzer_tests?.class || null,
+      question_text: original.question || null,
+      student_answer: original.student_answer || null,
+      expected_answer: original.expected_answer || null,
+      ai_marks_awarded: aiMarks,
+      ai_marks_available: original.marks_available,
+      ai_reasoning: original.reasoning || null,
+      override_marks: Number(overrideMarks),
+      override_reason: overrideReason || null,
+      teacher_user_id: user?.id || null,
+      school_id: schoolInfo?.school?.id || null,
+    }).then(() => {}).catch((e) => console.warn("override_log insert:", e.message));
+
+    res.json({ ok: true, newTotal, question: questions[idx] });
+  } catch (err) {
+    console.error("mark-override:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // PATCH /results/:id/comments

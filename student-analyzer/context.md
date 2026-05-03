@@ -11,9 +11,9 @@ Vite 6 + React 18, JavaScript (not TypeScript), hosted on Vercel.
 src/components/
   Dashboard.jsx         — main school admin view, tab-based
   AdminPanel.jsx        — super-admin: school approval, invite school, credits
-  Analytics.jsx         — per-school analytics, teacher drill-down
-  BulkUpload.jsx        — upload + analyze answer sheets with SSE streaming
-  ResultDetail.jsx      — full result view: score, Q-by-Q, comments, share
+  Analytics.jsx         — per-school analytics, teacher drill-down; AllStudentsTable with expandable per-test breakdown; error banner with retry on API failure
+  BulkUpload.jsx        — upload + analyze answer sheets with SSE streaming; handles `fatal` event, shows stream error banner on network failure
+  ResultDetail.jsx      — full result view: score, Q-by-Q, comments, share; clickable "⚠ Unassigned" badge + AssignModal for manual student assignment
   StudentCRM.jsx        — manage students (add, import CSV, view results)
   TeacherCRM.jsx        — manage teachers (add, import CSV, invite to app)
   PaperGenerator.jsx    — generate/transcribe question papers

@@ -134,6 +134,49 @@ export interface PracticeAttemptResult {
   results: Array<{ no: number; correct: boolean; selected: string; answer: string }>;
 }
 
+export interface ConceptWeakness {
+  tag: string;
+  count: number;
+}
+
+export interface SubjectTrend {
+  subject: string;
+  trend: "improving" | "declining" | "stable";
+  avg: number;
+  testCount: number;
+  scores: number[];
+}
+
+export interface LearningFingerprint {
+  weakConcepts: ConceptWeakness[];
+  cogBreakdown: { recall: number; application: number; analysis: number };
+  subjectTrends: SubjectTrend[];
+  totalResultsAnalyzed: number;
+}
+
+export interface QuestionHeatmapItem {
+  no: number;
+  question?: string;
+  concept_tag?: string;
+  cognitive_level?: string;
+  marks_available: number;
+  successRate: number;
+  fullMarksRate: number;
+  attempts: number;
+}
+
+export interface ClassAnalyticsData {
+  test: { id: string; name: string; subject?: string; class?: string; section?: string; total_marks: number };
+  totalPapers: number;
+  classAvg: number | null;
+  scoreDistribution: Array<{ label: string; count: number }>;
+  questionHeatmap: QuestionHeatmapItem[];
+  topErrorAreas: Array<{ tag: string; count: number; cogLevel?: string }>;
+  atRisk: Array<{ resultId: string; name: string; roll?: string; score: number; marks: number; total: number }>;
+  atRiskThreshold: number;
+  students: Array<{ resultId: string; name: string; roll?: string; score: number; marks: number; total: number }>;
+}
+
 export interface AnalysisResult {
   resultId?: string;
   shareToken?: string;
@@ -267,6 +310,21 @@ export const api = {
       `/api/student/practice/${practiceSetId}/attempt`,
       { method: "POST", body: JSON.stringify({ answers }) }
     ),
+
+  // Learning fingerprint (Feature 3)
+  getStudentFingerprint: () =>
+    request<{ fingerprint: LearningFingerprint | null }>("/api/student/fingerprint"),
+
+  // Class analytics (Feature 1)
+  getClassAnalytics: (testId: string) =>
+    request<ClassAnalyticsData>(`/api/analytics/class/${testId}`),
+
+  // Mark override (Feature 6)
+  saveMarkOverride: (resultId: string, questionNo: number, overrideMarks: number, overrideReason?: string) =>
+    request<{ ok: boolean; newTotal: number }>(`/api/analyzer/results/${resultId}/mark-override`, {
+      method: "PATCH",
+      body: JSON.stringify({ questionNo, overrideMarks, overrideReason }),
+    }),
 
   // Public share — no auth, used by ShareResultScreen
   getShare: async (token: string): Promise<{ result: Result }> => {

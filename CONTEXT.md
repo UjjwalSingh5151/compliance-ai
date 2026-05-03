@@ -1,6 +1,6 @@
 # EduGrade — Full Project Context
 > Feed this file to any new Claude thread, Cursor session, or AI tool to get full context.
-> Last updated: 2026-05-03
+> Last updated: 2026-05-04 (9-feature batch)
 
 ---
 
@@ -88,7 +88,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 | File | Purpose |
 |---|---|
 | `backend/server.js` | Express app, CORS config, `/api/auth/me` route |
-| `backend/lib/shared.js` | Supabase client, Claude client, `ADMIN_USER_ID`, `requireSchool`, credit deduction |
+| `backend/lib/shared.js` | Supabase client, Claude client, `ADMIN_USER_ID`, `requireSchool`, `checkCredits()` (read-only pre-flight), `deductCredits()` (post-success only) |
 | `backend/routes/analyzer.js` | Test creation, answer sheet grading (SSE streaming), share token |
 | `backend/routes/school.js` | School registration, members, credits |
 | `backend/routes/student.js` | Student portal — results, revision notes, practice questions |
@@ -132,7 +132,8 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 | `TestResultsScreen` | Teacher | All results for a test (stats bar + list); 🔗 share button per result |
 | `ResultDetailScreen` | Teacher | Per-student: Answer Sheet tab + Analysis tab (Q-by-Q + teacher notes); 🔗 share in header |
 | `CorrectedCopiesScreen` | Teacher | All papers grouped by class → subject → tests |
-| `ProfileScreen` | Teacher+Student | CRM data (name, subject, class, roll_no, school); sign out |
+| `InsightsScreen` | Teacher | Class analytics for a test: heatmap, error areas, at-risk students; opened from TestResultsScreen 📊 button |
+| `ProfileScreen` | Teacher+Student | CRM data; teachers see name/subjects[]/classes[]/school — **editable** (✏️ Edit header btn); students see name/class/roll_no — read-only; sign out |
 | `StudentHomeScreen` | Student | Results grouped by subject, 3 action buttons per test; 👤 profile icon top-right |
 | `StudentResultDetailScreen` | Student | 4 tabs: Analysis / Sheet / Notes / Practice Quiz |
 | `ShareResultScreen` | Public | Share link result — no auth needed, Q-by-Q read-only |
@@ -159,8 +160,9 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
   1. `api.getMySchool()` → approved → Teacher flow
   2. `api.getStudentMe()` → found → Student flow
   3. Neither → UnknownRoleScreen
-- Teacher profile: `GET /api/school/teachers/me` → matches by `req.user.email` ilike against `school_teachers`
+- Teacher profile: `GET /api/school/teachers/me` → matches by `req.user.email` ilike against `school_teachers`; **editable** via `PATCH /api/school/teachers/me` (name, subjects[], classes[])
 - Student profile: `GET /api/student/me`
+- **Student login:** Uses the **same LoginScreen** as teachers — OTP flow, role auto-detected in AppNavigator after login → routes to student stack (StudentHomeScreen, StudentResultDetailScreen, ProfileScreen read-only)
 
 ---
 
@@ -392,21 +394,48 @@ RENDER_PROD_DEPLOY_HOOK      # same for production service
 - [ ] Add OCR preprocessing pipeline (replaces vision tokens, 75% reduction)
 
 ### Features
-- [ ] Profile screen editing — teachers can update their own CRM data (currently read-only)
+- [x] Profile screen editing — teachers can update name/subjects[]/classes[] via `PATCH /api/school/teachers/me`; mobile ProfileScreen has edit mode with comma-separated inputs
+- [x] Student result assignment — mobile ResultDetailScreen has `AssignModal` bottom sheet; web portal ResultDetail.jsx shows clickable "⚠ Unassigned" badge; both call `PATCH /api/analyzer/results/:id/assign`
+- [x] Admin analytics: per-teacher + per-student breakdown — `AllStudentsTable` component in Analytics.jsx; backend `/analytics/teacher/:id` now returns `allStudents[]` with `testBreakdown[]` per student
+- [x] **Class-level analytics dashboard** — `GET /api/analytics/class/:testId` + `GET /api/analytics/school-overview`; web: `ClassAnalytics.jsx` + "📊 Class Report" button in TestResults; mobile: `InsightsScreen.tsx` + 📊 button in TestResultsScreen header
+- [x] **Error taxonomy in grading prompt** — `concept_tag` + `cognitive_level` fields added per question in analyzePrompt; stored in existing `analysis.questions[]` JSONB — no schema migration
+- [x] **Student learning fingerprint** — `GET /api/student/fingerprint`; `LearningFingerprintCard` component in mobile StudentHomeScreen; shows recurring weak concepts, cognitive level breakdown, per-subject trend
+- [x] **Parent share card** — mobile ShareResultScreen redesigned: score + grade, 2-line summary, top 3 focus areas, practice hint, "📲 Share on WhatsApp" button (whatsapp://send), collapsible Q-by-Q
+- [x] **Accuracy benchmark report** — `GET /api/admin/benchmark`; AdminPanel "📊 Benchmark" tab with overall AI-teacher agreement %, per-subject breakdown, Export CSV; powered by `override_log` table
+- [x] **Teacher mark override + feedback loop** — `PATCH /api/analyzer/results/:id/mark-override`; override form in QuestionCard (web ResultDetail); logs original AI marks + correction to `override_log` table; concept_tag + cognitive_level badges shown on each question
+- [x] **Self-serve onboarding** — `POST /api/school` now auto-approves + grants 100 free credits instantly; SchoolSetup.jsx shows "🎉 You're all set!" welcome screen; removed "pending approval" gate for new schools
+- [x] **Usage metrics dashboard** — `GET /api/admin/metrics`; AdminPanel "📈 Metrics" tab: total papers all time, this month, MoM growth %, active vs approved schools, per-school breakdown
+- [x] **Personalized practice questions** — practice prompt upgraded to use `concept_tag` from wrong questions + historical recurring concepts across student's last 10 results; generates 8 MCQs targeting specific weak concepts with `concept_tag` and `cognitive_level` per question
 - [ ] Web portal: "Open in App" button on `ShareView` for deep link (`kelzo://share/:token`)
 - [ ] Web portal: AcceptInvite page (may be obsolete now OTP is live)
-- [ ] Student result assignment: manual assign flow when roll_no doesn't auto-match
-- [ ] Admin analytics: per-teacher breakdown on web portal
 - [ ] Play Store submission
 - [ ] Turn on Vercel Analytics (both projects)
 
+### New DB table needed (run in Supabase SQL editor)
+```sql
+-- override_log: teacher mark corrections — fine-tuning dataset + benchmark data
+CREATE TABLE override_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  result_id uuid REFERENCES analyzer_results(id) ON DELETE CASCADE,
+  question_no integer NOT NULL,
+  subject text, class text,
+  question_text text, student_answer text, expected_answer text,
+  ai_marks_awarded numeric, ai_marks_available numeric, ai_reasoning text,
+  override_marks numeric NOT NULL, override_reason text,
+  teacher_user_id uuid, school_id uuid,
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX ON override_log(result_id);
+CREATE INDEX ON override_log(school_id);
+```
+
 ### Code quality (from QC scan)
-- [ ] Fix silent error handling in `Analytics.jsx` — no UI shown on API failure
-- [ ] Extract hardcoded `https://app.kelzo.ai` to a constant in mobile
-- [ ] Fix unhandled promise in `BulkUpload.jsx` SSE stream (user stuck on network failure)
-- [ ] Fix credit deduction happening before file validation in backend
-- [ ] Replace `any` types in `mobile/src/lib/api.ts` with proper interfaces
-- [ ] Add request logging middleware to backend
+- [x] Fix silent error handling in `Analytics.jsx` — error banner + "Try again" button added
+- [x] Extract hardcoded `https://app.kelzo.ai` — `shareUrl(token)` helper in `mobile/src/lib/branding.ts`; used in ScanScreen, TestResultsScreen, ResultDetailScreen
+- [x] Fix unhandled promise in `BulkUpload.jsx` SSE stream — `fatal` event handled, stream error banner shown
+- [x] Fix credit deduction order — `checkCredits()` (read-only pre-flight) before Claude call; `deductCredits()` only after successful response
+- [x] Replace `any` types in `mobile/src/lib/api.ts` — proper interfaces: `School`, `Student`, `TeacherProfile`, `QuestionResult`, `ResultAnalysis`, `Result`, `PracticeQuestion`, `PracticeAttemptResult`
+- [x] Add request logging middleware to `backend/server.js` — `[INFO/WARN/ERROR] METHOD /path STATUS Nms`
 
 ---
 

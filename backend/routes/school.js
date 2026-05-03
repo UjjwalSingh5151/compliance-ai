@@ -21,11 +21,31 @@ router.post("/", async (req, res) => {
     if (!name?.trim()) return res.status(400).json({ error: "School name required" });
     const existing = await getUserSchool(user.id, user.email);
     if (existing) return res.status(400).json({ error: "Already have a school registered" });
+
+    // Self-serve: auto-approve + grant 100 free evaluation credits immediately.
+    // Schools can start scanning right away without waiting for manual approval.
+    const FREE_TRIAL_CREDITS = 100;
     const { data, error } = await supabaseAdmin
-      .from("schools").insert({ name: name.trim(), contact_email: contact_email?.trim() || null, owner_user_id: user.id })
+      .from("schools").insert({
+        name: name.trim(),
+        contact_email: contact_email?.trim() || null,
+        owner_user_id: user.id,
+        status: "approved",
+        credits: FREE_TRIAL_CREDITS,
+      })
       .select().single();
     if (error) throw error;
-    res.json({ school: data });
+
+    // Log the free trial credit grant
+    supabaseAdmin.from("credit_transactions").insert({
+      school_id: data.id,
+      amount: FREE_TRIAL_CREDITS,
+      type: "free_trial",
+      description: "Free evaluation credits on signup",
+      balance_after: FREE_TRIAL_CREDITS,
+    }).then(() => {}).catch(() => {});
+
+    res.json({ school: data, freeCredits: FREE_TRIAL_CREDITS });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

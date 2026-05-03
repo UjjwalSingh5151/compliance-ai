@@ -1,23 +1,29 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, SectionList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert,
+  RefreshControl, ActivityIndicator, Alert, ScrollView,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { api } from "../lib/api";
+import { api, LearningFingerprint } from "../lib/api";
 import { signOut } from "../lib/auth";
 import { c } from "../lib/theme";
 
 export default function StudentHomeScreen({ navigation }: any) {
-  const [student, setStudent]     = useState<any>(null);
-  const [sections, setSections]   = useState<{ title: string; data: any[] }[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [student, setStudent]         = useState<any>(null);
+  const [sections, setSections]       = useState<{ title: string; data: any[] }[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [refreshing, setRefreshing]   = useState(false);
   const [totalResults, setTotalResults] = useState(0);
-  const [avgPct, setAvgPct]       = useState(0);
+  const [avgPct, setAvgPct]           = useState(0);
+  const [fingerprint, setFingerprint] = useState<LearningFingerprint | null>(null);
+  const [fpExpanded, setFpExpanded]   = useState(false);
 
   const load = async (quiet = false) => {
     if (!quiet) setLoading(true);
+    // Fetch fingerprint in parallel (non-blocking)
+    api.getStudentFingerprint()
+      .then(({ fingerprint: fp }) => setFingerprint(fp))
+      .catch(() => {}); // fingerprint is optional, never block load
     try {
       const res = await api.getStudentResults();
       setStudent(res.student);
@@ -142,6 +148,15 @@ export default function StudentHomeScreen({ navigation }: any) {
         </View>
       )}
 
+      {/* Learning fingerprint card — shown once student has results */}
+      {fingerprint && totalResults >= 2 && (
+        <LearningFingerprintCard
+          fp={fingerprint}
+          expanded={fpExpanded}
+          onToggle={() => setFpExpanded((v) => !v)}
+        />
+      )}
+
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />
       ) : sections.length === 0 ? (
@@ -172,6 +187,109 @@ export default function StudentHomeScreen({ navigation }: any) {
     </View>
   );
 }
+
+// ─── Learning fingerprint card ─────────────────────────────────────────────
+function LearningFingerprintCard({ fp, expanded, onToggle }: {
+  fp: LearningFingerprint; expanded: boolean; onToggle: () => void;
+}) {
+  const cogColors = { recall: c.success, application: c.warning, analysis: c.purple };
+  return (
+    <TouchableOpacity
+      style={fpStyles.card}
+      onPress={onToggle}
+      activeOpacity={0.85}
+    >
+      {/* Header row */}
+      <View style={fpStyles.headerRow}>
+        <View style={fpStyles.headerLeft}>
+          <Text style={fpStyles.title}>🧠 My Learning Profile</Text>
+          <Text style={fpStyles.sub}>
+            {fp.totalResultsAnalyzed} test{fp.totalResultsAnalyzed !== 1 ? "s" : ""} analyzed
+          </Text>
+        </View>
+        <Text style={fpStyles.chevron}>{expanded ? "▲" : "▼"}</Text>
+      </View>
+
+      {/* Always visible: subject trends */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+        <View style={fpStyles.trendRow}>
+          {fp.subjectTrends.map((t) => {
+            const trendColor = t.trend === "improving" ? c.success : t.trend === "declining" ? c.danger : c.warning;
+            const trendIcon = t.trend === "improving" ? "↑" : t.trend === "declining" ? "↓" : "→";
+            return (
+              <View key={t.subject} style={fpStyles.trendChip}>
+                <Text style={fpStyles.trendSubject} numberOfLines={1}>{t.subject}</Text>
+                <Text style={[fpStyles.trendIcon, { color: trendColor }]}>{trendIcon} {t.avg}%</Text>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      {expanded && (
+        <>
+          {/* Cognitive level breakdown */}
+          {(fp.cogBreakdown.recall > 0 || fp.cogBreakdown.application > 0 || fp.cogBreakdown.analysis > 0) && (
+            <View style={fpStyles.cogSection}>
+              <Text style={fpStyles.subTitle}>WHERE YOU LOSE MARKS</Text>
+              <View style={fpStyles.cogRow}>
+                {(["recall", "application", "analysis"] as const).map((level) => {
+                  const pct = fp.cogBreakdown[level];
+                  const col = cogColors[level];
+                  return (
+                    <View key={level} style={fpStyles.cogItem}>
+                      <Text style={[fpStyles.cogPct, { color: col }]}>{pct}%</Text>
+                      <Text style={fpStyles.cogLabel}>{level}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Recurring weak concepts */}
+          {fp.weakConcepts.length > 0 && (
+            <View style={fpStyles.conceptSection}>
+              <Text style={fpStyles.subTitle}>RECURRING WEAK CONCEPTS</Text>
+              <View style={fpStyles.conceptRow}>
+                {fp.weakConcepts.map((wc) => (
+                  <View key={wc.tag} style={fpStyles.conceptChip}>
+                    <Text style={fpStyles.conceptText}>{wc.tag}</Text>
+                    <Text style={fpStyles.conceptCount}>{wc.count}×</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+const fpStyles = StyleSheet.create({
+  card:          { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: `${c.accent}30`, margin: 16, marginBottom: 0, padding: 14 },
+  headerRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerLeft:    { flex: 1 },
+  title:         { fontSize: 14, fontWeight: "700", color: c.text },
+  sub:           { fontSize: 11, color: c.textDim, marginTop: 2 },
+  chevron:       { fontSize: 10, color: c.textDim, marginLeft: 8 },
+  trendRow:      { flexDirection: "row", gap: 8, paddingBottom: 2 },
+  trendChip:     { backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, paddingHorizontal: 10, paddingVertical: 6, alignItems: "center", minWidth: 80 },
+  trendSubject:  { fontSize: 11, fontWeight: "600", color: c.text, maxWidth: 90 },
+  trendIcon:     { fontSize: 12, fontWeight: "700", marginTop: 2 },
+  cogSection:    { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border },
+  subTitle:      { fontSize: 10, fontWeight: "700", color: c.textDim, letterSpacing: 0.8, marginBottom: 10 },
+  cogRow:        { flexDirection: "row", gap: 10 },
+  cogItem:       { flex: 1, alignItems: "center", backgroundColor: c.bg, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: c.border },
+  cogPct:        { fontSize: 18, fontWeight: "800" },
+  cogLabel:      { fontSize: 10, color: c.textDim, marginTop: 2 },
+  conceptSection:{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border },
+  conceptRow:    { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  conceptChip:   { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${c.danger}15`, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: `${c.danger}30` },
+  conceptText:   { fontSize: 12, color: c.text, fontWeight: "500" },
+  conceptCount:  { fontSize: 11, fontWeight: "700", color: c.danger },
+});
 
 function ActionBtn({ icon, label, onPress, color }: {
   icon: string; label: string; onPress: () => void; color: string;

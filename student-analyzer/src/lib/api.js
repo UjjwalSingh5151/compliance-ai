@@ -142,6 +142,21 @@ export const api = {
     json(`/api/admin/schools/${schoolId}/credits`, { method: "POST", body: JSON.stringify({ amount, note }) }),
   getSchoolCreditHistory: (schoolId) => json(`/api/admin/schools/${schoolId}/credits/history`),
 
+  // Admin metrics + benchmark (Features 8 + 5)
+  getAdminMetrics: () => json("/api/admin/metrics"),
+  getAdminBenchmark: () => json("/api/admin/benchmark"),
+
+  // Class analytics (Feature 1)
+  getClassAnalytics: (testId) => json(`/api/analytics/class/${testId}`),
+  getSchoolOverview: () => json("/api/analytics/school-overview"),
+
+  // Mark override (Feature 6)
+  saveMarkOverride: (resultId, questionNo, overrideMarks, overrideReason) =>
+    json(`/api/analyzer/results/${resultId}/mark-override`, {
+      method: "PATCH",
+      body: JSON.stringify({ questionNo, overrideMarks, overrideReason }),
+    }),
+
   // Student portal
   getStudentMe: () => json("/api/student/me"),
   getStudentResults: () => json("/api/student/results"),

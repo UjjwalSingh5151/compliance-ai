@@ -15,10 +15,13 @@ function ScoreRing({ pct, small }) {
   );
 }
 
-function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMobile }) {
+function QuestionCard({ q, comment, onCommentChange, onCommentSave, onMarkOverride, saving, isMobile }) {
   const pct = q.marks_available > 0 ? Math.round((q.marks_awarded / q.marks_available) * 100) : 0;
   const markColor = pct === 100 ? c.success : pct >= 60 ? c.warning : c.danger;
   const [expanded, setExpanded] = useState(false);
+  const [overrideVal, setOverrideVal] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [showOverride, setShowOverride] = useState(false);
 
   return (
     <div style={{ border: `1px solid ${c.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 10 }}>
@@ -71,10 +74,64 @@ function QuestionCard({ q, comment, onCommentChange, onCommentSave, saving, isMo
               </div>
             </div>
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: c.textDim, letterSpacing: 0.5 }}>MARKS AWARDED</div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: markColor }}>{q.marks_awarded} / {q.marks_available}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: markColor }}>
+              {q.marks_awarded} / {q.marks_available}
+              {q.teacher_override && <span style={{ fontSize: 10, color: c.warning, marginLeft: 6, fontWeight: 600 }}>✏ overridden</span>}
+            </span>
+            <button style={{ ...btn.ghost, fontSize: 11, padding: "2px 10px", color: c.textDim, marginLeft: "auto" }}
+              onClick={() => { setShowOverride((v) => !v); setOverrideVal(String(q.marks_awarded)); }}>
+              {showOverride ? "Cancel override" : "Override marks"}
+            </button>
           </div>
+          {/* Concept tag + cognitive level badges */}
+          {(q.concept_tag || q.cognitive_level) && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {q.concept_tag && (
+                <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${c.accent}15`, color: c.accent, border: `1px solid ${c.accent}30` }}>
+                  🏷 {q.concept_tag}
+                </span>
+              )}
+              {q.cognitive_level && (
+                <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
+                  background: q.cognitive_level === "recall" ? `${c.success}15` : q.cognitive_level === "application" ? `${c.warning}15` : `${c.purple}15`,
+                  color: q.cognitive_level === "recall" ? c.success : q.cognitive_level === "application" ? c.warning : c.purple,
+                  border: `1px solid ${q.cognitive_level === "recall" ? c.success : q.cognitive_level === "application" ? c.warning : c.purple}30`,
+                }}>
+                  🧠 {q.cognitive_level}
+                </span>
+              )}
+            </div>
+          )}
+          {/* Override form */}
+          {showOverride && (
+            <div style={{ background: `${c.warning}10`, border: `1px solid ${c.warning}30`, borderRadius: 8, padding: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: c.warning, marginBottom: 8, letterSpacing: 0.5 }}>OVERRIDE AI MARKS</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div>
+                  <label style={{ fontSize: 11, color: c.textDim, display: "block", marginBottom: 3 }}>New marks (0–{q.marks_available})</label>
+                  <input style={{ ...input, width: 80, fontSize: 13, padding: "6px 10px" }}
+                    type="number" min={0} max={q.marks_available} step={0.5}
+                    value={overrideVal} onChange={(e) => setOverrideVal(e.target.value)} />
+                </div>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <label style={{ fontSize: 11, color: c.textDim, display: "block", marginBottom: 3 }}>Reason (optional)</label>
+                  <input style={{ ...input, fontSize: 12, padding: "6px 10px", width: "100%", boxSizing: "border-box" }}
+                    placeholder="e.g. Partial credit for method" value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)} />
+                </div>
+                <button style={{ ...btn.primary, fontSize: 12, background: c.warning, opacity: saving ? 0.6 : 1 }}
+                  disabled={saving || overrideVal === ""}
+                  onClick={() => {
+                    onMarkOverride(q.no, Number(overrideVal), overrideReason);
+                    setShowOverride(false);
+                  }}>
+                  Save override
+                </button>
+              </div>
+            </div>
+          )}
           {q.feedback && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: c.success, marginBottom: 4, letterSpacing: 0.5 }}>FEEDBACK TO STUDENT</div>
@@ -253,6 +310,24 @@ export default function ResultDetail({ params, navigate, isMobile }) {
     finally { setSaving(false); }
   }, [resultId, comments]);
 
+  const handleMarkOverride = useCallback(async (questionNo, overrideMarks, overrideReason) => {
+    setSaving(true);
+    try {
+      const { newTotal, question } = await api.saveMarkOverride(resultId, questionNo, overrideMarks, overrideReason);
+      // Update local state — patch the question and total
+      setResult((prev) => {
+        const updatedAnalysis = { ...(prev.analysis || {}) };
+        const updatedQs = (updatedAnalysis.questions || []).map((q) =>
+          q.no === questionNo ? { ...q, marks_awarded: overrideMarks, teacher_override: true } : q
+        );
+        updatedAnalysis.questions = updatedQs;
+        updatedAnalysis.marks_obtained = newTotal;
+        return { ...prev, analysis: updatedAnalysis, marks_obtained: newTotal };
+      });
+    } catch (e) { alert(`Override failed: ${e.message}`); }
+    finally { setSaving(false); }
+  }, [resultId]);
+
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl(result.share_token));
     setCopyDone(true);
@@ -364,6 +439,7 @@ export default function ResultDetail({ params, navigate, isMobile }) {
               comment={comments[String(q.no)]}
               onCommentChange={handleCommentChange}
               onCommentSave={saveComments}
+              onMarkOverride={handleMarkOverride}
               saving={saving}
               isMobile={isMobile || hasSheet}
             />

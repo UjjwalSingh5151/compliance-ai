@@ -28,13 +28,13 @@ src/
     NewPaperScreen.tsx        — create test: capture QP → extract → details form → create
     ScanScreen.tsx            — scan copies: multi-copy queue → analyze all → results
     TestResultsScreen.tsx     — all results for one test, share button per result
-    ResultDetailScreen.tsx    — full result: score ring, Q-by-Q breakdown, teacher comments, share
+    ResultDetailScreen.tsx    — full result: score ring, Q-by-Q breakdown, teacher comments, share; AssignModal bottom sheet to manually assign result to a student
     CorrectedCopiesScreen.tsx — browse all corrected copies across tests
     SelectTestScreen.tsx      — pick existing test to add more notebooks
     ShareResultScreen.tsx     — public share view (no auth required)
     StudentHomeScreen.tsx     — student home: results grouped by subject, stats
     StudentResultDetailScreen.tsx — student view: analysis + revision notes + practice questions
-    ProfileScreen.tsx         — teacher/student profile from CRM, sign out
+    ProfileScreen.tsx         — teacher profile: editable (name, subjects[], classes[]) via ✏️ Edit header btn; student profile: read-only; sign out
 ```
 
 ## Auth flow
@@ -72,6 +72,15 @@ const linking = {
 All calls go through `src/lib/api.ts` → `request<T>(path, opts)` wrapper.
 The wrapper: gets Supabase token → sets Authorization header → handles errors.
 SSE exception: `analyzeSheet` uses XMLHttpRequest (RN has no ReadableStream).
+
+Key api.ts methods (beyond basic CRUD):
+- `updateMyTeacherProfile({ name, subjects, classes })` → `PATCH /api/school/teachers/me`
+- `getSchoolStudents()` → `GET /api/school/students` — used by AssignModal
+- `assignResult(id, studentId)` → `PATCH /api/analyzer/results/:id/assign`
+
+## Share URL helper (branding.ts)
+`shareUrl(token)` → `${BRAND.schoolPortalUrl}/share/${token}`
+Used in ScanScreen, TestResultsScreen, ResultDetailScreen — never hardcode `https://app.kelzo.ai`.
 
 ## EAS build profiles (eas.json)
 - `preview` → APK for testing (Android)

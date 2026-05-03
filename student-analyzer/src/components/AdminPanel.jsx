@@ -2,6 +2,189 @@ import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { c, card, btn, input } from "../lib/theme";
 
+// ─── Usage metrics panel ──────────────────────────────────────────────────────
+function MetricsPanel({ isMobile }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.getAdminMetrics()
+      .then(setData)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ color: c.textDim, fontSize: 13 }}>Loading…</div>;
+  if (error) return <div style={{ color: c.danger, fontSize: 13 }}>Error: {error}</div>;
+
+  const { totalPapers, papersThisMonth, papersLastMonth, momGrowth, approvedSchools, activeSchools, perSchool } = data;
+  const growthColor = momGrowth > 0 ? c.success : momGrowth < 0 ? c.danger : c.textMid;
+
+  const statBoxStyle = { ...card, padding: "14px 18px", textAlign: "center", minWidth: 110, flex: "1 1 110px" };
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: c.textMid, marginBottom: 16, lineHeight: 1.6 }}>
+        Live usage stats. Use these numbers in interviews — no SQL needed.
+      </div>
+
+      {/* Top stats */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+        <div style={statBoxStyle}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: c.accent }}>{totalPapers}</div>
+          <div style={{ fontSize: 11, color: c.textDim }}>Papers graded (all time)</div>
+        </div>
+        <div style={statBoxStyle}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: c.text }}>{papersThisMonth}</div>
+          <div style={{ fontSize: 11, color: c.textDim }}>Papers this month</div>
+        </div>
+        <div style={statBoxStyle}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: growthColor }}>
+            {momGrowth > 0 ? "+" : ""}{momGrowth}%
+          </div>
+          <div style={{ fontSize: 11, color: c.textDim }}>MoM growth</div>
+          <div style={{ fontSize: 10, color: c.textDim, marginTop: 1 }}>vs last month ({papersLastMonth} papers)</div>
+        </div>
+        <div style={statBoxStyle}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: c.success }}>{activeSchools}</div>
+          <div style={{ fontSize: 11, color: c.textDim }}>Active schools</div>
+          <div style={{ fontSize: 10, color: c.textDim, marginTop: 1 }}>of {approvedSchools} approved</div>
+        </div>
+      </div>
+
+      {/* Per-school breakdown */}
+      {perSchool?.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.textMid, marginBottom: 10, letterSpacing: 0.5 }}>
+            PER-SCHOOL USAGE
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {perSchool.map((s) => (
+              <div key={s.id} style={{ ...card, padding: isMobile ? 12 : 14, display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.text }}>{s.name}</div>
+                </div>
+                <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: c.accent }}>{s.total}</div>
+                    <div style={{ fontSize: 10, color: c.textDim }}>all time</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: s.thisMonth > 0 ? c.success : c.textDim }}>{s.thisMonth}</div>
+                    <div style={{ fontSize: 10, color: c.textDim }}>this month</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(!perSchool || perSchool.length === 0) && (
+        <div style={{ ...card, textAlign: "center", padding: 32, color: c.textDim, fontSize: 13 }}>
+          No graded papers yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Accuracy benchmark panel ─────────────────────────────────────────────────
+function BenchmarkPanel({ isMobile }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.getAdminBenchmark()
+      .then(setData)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const exportCSV = () => {
+    if (!data?.benchmarkRows?.length) return;
+    const header = "School,Subject,Class,Papers with overrides,Total overrides,AI agreement %\n";
+    const rows = data.benchmarkRows.map((r) =>
+      `"${r.schoolName}","${r.subject}","${r.class}",${r.papers},${r.totalOverrides},${r.agreementPct ?? "N/A"}`
+    ).join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "ai-accuracy-benchmark.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (loading) return <div style={{ color: c.textDim, fontSize: 13 }}>Loading…</div>;
+  if (error) return <div style={{ color: c.danger, fontSize: 13 }}>Error: {error}</div>;
+
+  const { benchmarkRows, overallAgreement, totalOverrides, note } = data;
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: c.textMid, marginBottom: 16, lineHeight: 1.6 }}>
+        AI-teacher agreement % based on teacher mark overrides. <br />
+        <em>"Our system agrees with teacher grades {overallAgreement ?? "—"}% of the time."</em>
+      </div>
+
+      {/* Overall agreement headline */}
+      {overallAgreement !== null && (
+        <div style={{ ...card, padding: "18px 22px", marginBottom: 16, display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ fontSize: 40, fontWeight: 800, color: overallAgreement >= 85 ? c.success : overallAgreement >= 70 ? c.warning : c.danger }}>
+            {overallAgreement}%
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: c.text }}>Overall AI-Teacher Agreement</div>
+            <div style={{ fontSize: 12, color: c.textDim, marginTop: 2 }}>
+              Across {totalOverrides} teacher corrections in {benchmarkRows.length} subject/class group{benchmarkRows.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+          <button style={{ ...btn.ghost, fontSize: 12, marginLeft: "auto" }} onClick={exportCSV}>
+            ↓ Export CSV
+          </button>
+        </div>
+      )}
+
+      {note && (
+        <div style={{ ...card, padding: 16, marginBottom: 16, background: `${c.warning}0A`, border: `1px solid ${c.warning}30` }}>
+          <div style={{ fontSize: 12, color: c.textMid }}>{note}</div>
+          <div style={{ fontSize: 11, color: c.textDim, marginTop: 8 }}>
+            To generate data: teachers can click "Override marks" on any question in a result to log a correction. Each correction is counted here.
+          </div>
+        </div>
+      )}
+
+      {benchmarkRows.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {benchmarkRows.map((row, i) => (
+            <div key={i} style={{ ...card, padding: isMobile ? 12 : 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: c.text }}>
+                  {row.subject} · Class {row.class}
+                </div>
+                <div style={{ fontSize: 11, color: c.textMid, marginTop: 1 }}>{row.schoolName} · {row.papers} papers</div>
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: c.textDim }}>Overrides</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>{row.totalOverrides}</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: c.textDim }}>Agreement</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: row.agreementPct >= 85 ? c.success : row.agreementPct >= 70 ? c.warning : c.danger }}>
+                    {row.agreementPct ?? "—"}%
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Invite school sub-panel ──────────────────────────────────────────────────
 function InvitePanel({ isMobile }) {
   const [email, setEmail]       = useState("");
@@ -224,7 +407,7 @@ export default function AdminPanel({ navigate, isMobile }) {
   const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(null);
-  const [tab, setTab] = useState("schools"); // "schools" | "invite" | "credits"
+  const [tab, setTab] = useState("schools"); // "schools" | "invite" | "credits" | "metrics" | "benchmark"
   const p = isMobile ? 16 : 28;
 
   useEffect(() => {
@@ -256,7 +439,7 @@ export default function AdminPanel({ navigate, isMobile }) {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 2, marginBottom: 20, borderBottom: `1px solid ${c.border}` }}>
-        {[["schools", "🏫 Schools"], ["invite", "✉️ Invite School"], ["credits", "💳 Credits"]].map(([id, label]) => (
+        {[["schools", "🏫 Schools"], ["invite", "✉️ Invite School"], ["credits", "💳 Credits"], ["metrics", "📈 Metrics"], ["benchmark", "📊 Benchmark"]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ padding: "8px 16px", fontSize: 13, background: "transparent", border: "none",
               borderBottom: tab === id ? `2px solid ${c.accent}` : "2px solid transparent",
@@ -267,8 +450,10 @@ export default function AdminPanel({ navigate, isMobile }) {
         ))}
       </div>
 
-      {tab === "invite"  && <InvitePanel  isMobile={isMobile} />}
-      {tab === "credits" && <CreditsPanel isMobile={isMobile} />}
+      {tab === "invite"    && <InvitePanel    isMobile={isMobile} />}
+      {tab === "credits"   && <CreditsPanel   isMobile={isMobile} />}
+      {tab === "metrics"   && <MetricsPanel   isMobile={isMobile} />}
+      {tab === "benchmark" && <BenchmarkPanel isMobile={isMobile} />}
 
       {tab === "schools" && (
         <>

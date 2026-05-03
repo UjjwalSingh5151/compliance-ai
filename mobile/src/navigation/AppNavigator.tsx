@@ -28,6 +28,7 @@ import ShareResultScreen      from "../screens/ShareResultScreen";
 import StudentHomeScreen      from "../screens/StudentHomeScreen";
 import StudentResultDetailScreen from "../screens/StudentResultDetailScreen";
 import ProfileScreen            from "../screens/ProfileScreen";
+import InsightsScreen          from "../screens/InsightsScreen";
 
 // ─── Deep link config ─────────────────────────────────────────────────────────
 // Maps https://app.kelzo.ai/share/{token}  →  ShareResult screen with { token }
@@ -130,6 +131,7 @@ export default function AppNavigator() {
             <Stack.Screen name="TestResults"     component={TestResultsScreen} />
             <Stack.Screen name="ResultDetail"    component={ResultDetailScreen} />
             <Stack.Screen name="CorrectedCopies" component={CorrectedCopiesScreen} />
+            <Stack.Screen name="Insights"        component={InsightsScreen} />
             <Stack.Screen name="Profile"         component={ProfileScreen} />
             <Stack.Screen name="ShareResult"     component={ShareResultScreen} />
           </>

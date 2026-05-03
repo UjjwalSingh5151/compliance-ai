@@ -97,6 +97,13 @@ export default function TestResultsScreen({ route, navigation }: any) {
             </Text>
           )}
         </View>
+        {/* Insights button */}
+        <TouchableOpacity
+          style={[styles.scanBtn, { backgroundColor: `${c.purple}18`, borderColor: `${c.purple}40`, marginRight: 6 }]}
+          onPress={() => navigation.navigate("Insights", { testId: test.id, testName: test.name })}
+        >
+          <Text style={[styles.scanBtnText, { color: c.purple }]}>📊</Text>
+        </TouchableOpacity>
         {/* Scan button */}
         <TouchableOpacity
           style={styles.scanBtn}

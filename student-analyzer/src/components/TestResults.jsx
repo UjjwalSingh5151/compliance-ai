@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
 import { shareUrl, whatsappUrl } from "../lib/share";
 import { c, card, btn, input } from "../lib/theme";
+import ClassAnalytics from "./ClassAnalytics";
 
 const fmtIST = (d) => new Date(d).toLocaleString("en-IN", {
   timeZone: "Asia/Kolkata", day: "2-digit", month: "short",
@@ -176,7 +177,20 @@ export default function TestResults({ params, navigate, isMobile }) {
   const [error, setError] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [assigningId, setAssigningId] = useState(null);
+  const [showClassReport, setShowClassReport] = useState(false);
   const p = isMobile ? 16 : 28;
+
+  // If class report is active, render it instead
+  if (showClassReport && data?.test) {
+    return (
+      <ClassAnalytics
+        testId={testId}
+        testName={data.test.name}
+        onBack={() => setShowClassReport(false)}
+        isMobile={isMobile}
+      />
+    );
+  }
 
   useEffect(() => {
     api.getTestResults(testId)
@@ -239,10 +253,16 @@ export default function TestResults({ params, navigate, isMobile }) {
               <span>{test.total_marks} marks</span>
             </div>
           </div>
-          <button style={{ ...btn.primary, fontSize: 12 }}
-            onClick={() => navigate("upload", { testId: test.id, testName: test.name })}>
-            + Upload More
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button style={{ ...btn.ghost, fontSize: 12 }}
+              onClick={() => setShowClassReport(true)}>
+              📊 Class Report
+            </button>
+            <button style={{ ...btn.primary, fontSize: 12 }}
+              onClick={() => navigate("upload", { testId: test.id, testName: test.name })}>
+              + Upload More
+            </button>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 16, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.border}`, flexWrap: "wrap" }}>
           <div style={{ textAlign: "center" }}>

@@ -124,4 +124,148 @@ router.get("/schools/:id/credits/history", requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── Usage metrics dashboard ──────────────────────────────────────────────────
+// GET /admin/metrics — high-level usage stats for the admin interview dashboard
+router.get("/metrics", requireAdmin, async (req, res) => {
+  try {
+    // Total papers evaluated all time
+    const { count: totalPapers } = await supabaseAdmin
+      .from("analyzer_results").select("*", { count: "exact", head: true });
+
+    // Papers this month
+    const monthStart = new Date();
+    monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    const { count: papersThisMonth } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("*", { count: "exact", head: true })
+      .gte("analyzed_at", monthStart.toISOString());
+
+    // Papers last month (for MoM growth)
+    const prevMonthStart = new Date(monthStart);
+    prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
+    const { count: papersLastMonth } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("*", { count: "exact", head: true })
+      .gte("analyzed_at", prevMonthStart.toISOString())
+      .lt("analyzed_at", monthStart.toISOString());
+
+    // Active schools (have at least one result)
+    const { data: activeSchoolRows } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("analyzer_tests(school_id)");
+    const activeSchoolIds = new Set(
+      (activeSchoolRows || []).map((r) => r.analyzer_tests?.school_id).filter(Boolean)
+    );
+
+    // All approved schools
+    const { count: approvedSchools } = await supabaseAdmin
+      .from("schools").select("*", { count: "exact", head: true }).eq("status", "approved");
+
+    // Per-school paper counts
+    const { data: allResults } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("analyzed_at, analyzer_tests(school_id, schools(id, name))");
+
+    const perSchool = {};
+    for (const r of allResults || []) {
+      const school = r.analyzer_tests?.schools;
+      if (!school) continue;
+      if (!perSchool[school.id]) perSchool[school.id] = { id: school.id, name: school.name, total: 0, thisMonth: 0 };
+      perSchool[school.id].total++;
+      if (r.analyzed_at >= monthStart.toISOString()) perSchool[school.id].thisMonth++;
+    }
+
+    const momGrowth = papersLastMonth > 0
+      ? Math.round(((papersThisMonth - papersLastMonth) / papersLastMonth) * 100)
+      : papersThisMonth > 0 ? 100 : 0;
+
+    res.json({
+      totalPapers: totalPapers || 0,
+      papersThisMonth: papersThisMonth || 0,
+      papersLastMonth: papersLastMonth || 0,
+      momGrowth,
+      approvedSchools: approvedSchools || 0,
+      activeSchools: activeSchoolIds.size,
+      perSchool: Object.values(perSchool).sort((a, b) => b.total - a.total),
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Accuracy benchmark report ────────────────────────────────────────────────
+// GET /admin/benchmark — AI vs teacher agreement across all tests with overrides
+router.get("/benchmark", requireAdmin, async (req, res) => {
+  try {
+    // Get results that have at least one teacher_override in analysis.questions
+    const { data: results } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("id, marks_obtained, total_marks, analysis, analyzer_tests(name, subject, class, school_id, schools(name))")
+      .order("analyzed_at", { ascending: false });
+
+    // For each result, calculate AI vs teacher marks
+    // AI marks = sum of ai_marks_awarded from override_log entries for that result
+    // We use override_log to find what was overridden
+    const { data: overrides } = await supabaseAdmin
+      .from("override_log")
+      .select("result_id, question_no, ai_marks_awarded, override_marks, subject, class");
+
+    // Group overrides by result
+    const overrideMap = {};
+    for (const ov of overrides || []) {
+      if (!overrideMap[ov.result_id]) overrideMap[ov.result_id] = [];
+      overrideMap[ov.result_id].push(ov);
+    }
+
+    // Build benchmark per test
+    const testMap = {};
+    for (const r of results || []) {
+      const resultOverrides = overrideMap[r.id] || [];
+      if (!resultOverrides.length) continue; // skip results with no overrides
+
+      const testName = r.analyzer_tests?.name || "Unknown";
+      const subject = r.analyzer_tests?.subject || "Unknown";
+      const cls = r.analyzer_tests?.class || "Unknown";
+      const schoolName = r.analyzer_tests?.schools?.name || "Unknown";
+      const key = `${r.analyzer_tests?.school_id || ""}:${subject}:${cls}`;
+
+      if (!testMap[key]) testMap[key] = {
+        subject, class: cls, schoolName,
+        papers: 0, aiCorrect: 0, totalOverrides: 0, totalAgreement: 0,
+      };
+
+      testMap[key].papers++;
+      let thisResultAgreement = 0;
+      for (const ov of resultOverrides) {
+        testMap[key].totalOverrides++;
+        const diff = Math.abs((ov.ai_marks_awarded || 0) - (ov.override_marks || 0));
+        const threshold = 0.5; // within 0.5 marks = agreement
+        if (diff <= threshold) { testMap[key].aiCorrect++; thisResultAgreement++; }
+      }
+    }
+
+    const benchmarkRows = Object.values(testMap).map((row) => ({
+      ...row,
+      agreementPct: row.totalOverrides > 0
+        ? Math.round((row.aiCorrect / row.totalOverrides) * 100)
+        : null,
+    })).sort((a, b) => (b.agreementPct || 0) - (a.agreementPct || 0));
+
+    const overallAgreement = benchmarkRows.length > 0
+      ? Math.round(
+          benchmarkRows.filter((r) => r.agreementPct !== null)
+            .reduce((s, r) => s + r.agreementPct, 0) /
+          benchmarkRows.filter((r) => r.agreementPct !== null).length
+        )
+      : null;
+
+    res.json({
+      benchmarkRows,
+      overallAgreement,
+      totalOverrides: (overrides || []).length,
+      note: benchmarkRows.length === 0
+        ? "No teacher overrides recorded yet. Benchmark becomes available once teachers start correcting AI marks."
+        : null,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;

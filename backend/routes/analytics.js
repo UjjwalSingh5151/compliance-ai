@@ -150,7 +150,7 @@ router.get("/teacher/:teacherId", requireSchool, async (req, res) => {
     }
 
     // Per-student performance with full per-test breakdown
-    const studentMap: Record<string, any> = {};
+    const studentMap = {};
     for (const r of results) {
       const sName = r.analyzer_students?.name || r.analysis?.student?.name || "Unknown";
       const key = r.analyzer_students?.id || r.analyzer_students?.roll_no || sName;
@@ -178,12 +178,12 @@ router.get("/teacher/:teacherId", requireSchool, async (req, res) => {
       });
     }
     const studentList = Object.values(studentMap)
-      .map((s: any) => ({
+      .map((s) => ({
         ...s,
-        avg: Math.round(s.scores.reduce((a: number, b: number) => a + b, 0) / s.scores.length),
+        avg: Math.round(s.scores.reduce((a, b) => a + b, 0) / s.scores.length),
         testCount: s.scores.length,
       }))
-      .sort((a: any, b: any) => b.avg - a.avg);
+      .sort((a, b) => b.avg - a.avg);
 
     res.json({
       teacher,
@@ -200,6 +200,173 @@ router.get("/teacher/:teacherId", requireSchool, async (req, res) => {
     });
   } catch (err) {
     console.error("Analytics /teacher/:id:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analytics/class/:testId
+// Class-level analytics for one test — question heatmap, at-risk students, error areas.
+// Teachers access their own test; owners can access any test in their school.
+router.get("/class/:testId", requireSchool, async (req, res) => {
+  try {
+    const { testId } = req.params;
+    const { school, user, schoolRole } = req;
+
+    const { data: test, error: tErr } = await supabaseAdmin
+      .from("analyzer_tests")
+      .select("id, name, subject, class, section, total_marks, leniency, teacher_id, created_by")
+      .eq("id", testId).eq("school_id", school.id).single();
+    if (tErr || !test) return res.status(404).json({ error: "Test not found" });
+
+    // Teachers can only see their own tests
+    if (schoolRole === "teacher" && test.created_by !== user.id) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { data: results } = await supabaseAdmin
+      .from("analyzer_results")
+      .select("id, marks_obtained, total_marks, analysis, analyzed_at, analyzer_students(id, name, roll_no, class, section)")
+      .eq("test_id", testId)
+      .order("analyzed_at", { ascending: false });
+
+    const allResults = results || [];
+
+    // ── Question-level heatmap ────────────────────────────────────────────────
+    // For each question number: how many students attempted it and success rate
+    const qMap = {};
+    for (const r of allResults) {
+      const qs = r.analysis?.questions || [];
+      for (const q of qs) {
+        if (!qMap[q.no]) {
+          qMap[q.no] = {
+            no: q.no,
+            question: q.question || null,
+            concept_tag: q.concept_tag || null,
+            cognitive_level: q.cognitive_level || null,
+            marks_available: q.marks_available || 0,
+            totalAwarded: 0, totalPossible: 0, attempts: 0, fullMarks: 0,
+          };
+        }
+        qMap[q.no].totalAwarded += q.marks_awarded || 0;
+        qMap[q.no].totalPossible += q.marks_available || 0;
+        qMap[q.no].attempts++;
+        if ((q.marks_awarded || 0) >= (q.marks_available || 1)) qMap[q.no].fullMarks++;
+      }
+    }
+    const questionHeatmap = Object.values(qMap)
+      .sort((a, b) => a.no - b.no)
+      .map((q) => ({
+        ...q,
+        successRate: q.totalPossible > 0 ? Math.round((q.totalAwarded / q.totalPossible) * 100) : 0,
+        fullMarksRate: q.attempts > 0 ? Math.round((q.fullMarks / q.attempts) * 100) : 0,
+      }));
+
+    // ── Top error areas (concept_tag frequency from wrong questions) ──────────
+    const conceptErrors = {};
+    for (const r of allResults) {
+      for (const q of (r.analysis?.questions || [])) {
+        if ((q.marks_awarded || 0) < (q.marks_available || 1) && q.concept_tag) {
+          const tag = q.concept_tag.trim();
+          if (!conceptErrors[tag]) conceptErrors[tag] = { tag, count: 0, cogLevel: q.cognitive_level || null };
+          conceptErrors[tag].count++;
+        }
+      }
+    }
+    const topErrorAreas = Object.values(conceptErrors)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // ── At-risk students (below threshold) ───────────────────────────────────
+    const AT_RISK_THRESHOLD = 40; // percent
+    const studentPerf = allResults.map((r) => {
+      const sp = r.total_marks > 0 ? Math.round((r.marks_obtained / r.total_marks) * 100) : 0;
+      const s = r.analyzer_students;
+      return {
+        resultId: r.id,
+        name: s?.name || r.analysis?.student?.name || "Unknown",
+        roll: s?.roll_no || r.analysis?.student?.roll_no || null,
+        class: s?.class || r.analysis?.student?.class || null,
+        score: sp,
+        marks: r.marks_obtained,
+        total: r.total_marks,
+        analyzedAt: r.analyzed_at,
+      };
+    }).sort((a, b) => a.score - b.score);
+
+    const atRisk = studentPerf.filter((s) => s.score < AT_RISK_THRESHOLD);
+
+    res.json({
+      test,
+      totalPapers: allResults.length,
+      classAvg: avgScore(allResults),
+      scoreDistribution: scoreDistribution(allResults),
+      questionHeatmap,
+      topErrorAreas,
+      atRisk,
+      atRiskThreshold: AT_RISK_THRESHOLD,
+      students: studentPerf,
+    });
+  } catch (err) {
+    console.error("Analytics /class/:testId:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analytics/school-overview
+// Owner/principal: all classes side by side — per-test summary for each class
+router.get("/school-overview", requireSchool, async (req, res) => {
+  try {
+    const { school, user, schoolRole } = req;
+    const isOwner = schoolRole === "owner" || user.id === ADMIN_USER_ID;
+    if (!isOwner) return res.status(403).json({ error: "Owner only" });
+
+    const { data: tests } = await supabaseAdmin
+      .from("analyzer_tests")
+      .select("id, name, subject, class, section, total_marks, created_at, teacher_id")
+      .eq("school_id", school.id)
+      .order("created_at", { ascending: false });
+
+    const testIds = (tests || []).map((t) => t.id);
+    let results = [];
+    if (testIds.length) {
+      const { data } = await supabaseAdmin
+        .from("analyzer_results")
+        .select("id, test_id, marks_obtained, total_marks, analysis")
+        .in("test_id", testIds);
+      results = data || [];
+    }
+
+    // Group by class → subject → tests
+    const classMap = {};
+    for (const test of tests || []) {
+      const cls = test.class || "Unknown Class";
+      if (!classMap[cls]) classMap[cls] = { class: cls, subjects: {}, testCount: 0, resultCount: 0, avgScore: null };
+      const subj = test.subject || "General";
+      if (!classMap[cls].subjects[subj]) classMap[cls].subjects[subj] = { subject: subj, tests: [] };
+
+      const testResults = results.filter((r) => r.test_id === test.id);
+      classMap[cls].subjects[subj].tests.push({
+        ...test,
+        resultCount: testResults.length,
+        avgScore: avgScore(testResults),
+      });
+      classMap[cls].testCount++;
+      classMap[cls].resultCount += testResults.length;
+    }
+
+    // Calculate overall avg per class
+    for (const cls of Object.values(classMap)) {
+      const classResults = results.filter((r) => (tests || []).some((t) => t.id === r.test_id && (t.class || "Unknown Class") === cls.class));
+      cls.avgScore = avgScore(classResults);
+      cls.subjects = Object.values(cls.subjects); // convert to array
+    }
+
+    res.json({
+      school: { id: school.id, name: school.name },
+      classes: Object.values(classMap).sort((a, b) => a.class.localeCompare(b.class)),
+    });
+  } catch (err) {
+    console.error("Analytics /school-overview:", err);
     res.status(500).json({ error: err.message });
   }
 });

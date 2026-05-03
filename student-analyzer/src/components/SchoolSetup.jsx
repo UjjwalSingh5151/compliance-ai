@@ -8,6 +8,7 @@ export default function SchoolSetup({ onDone, isMobile }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [done, setDone] = useState(false);
   const p = isMobile ? 20 : 40;
 
   const submit = async (e) => {
@@ -16,12 +17,33 @@ export default function SchoolSetup({ onDone, isMobile }) {
     setLoading(true); setError(null);
     try {
       await api.registerSchool(name.trim(), email.trim());
-      onDone();
+      setDone(true);
+      // Give the welcome screen a moment, then transition to dashboard
+      setTimeout(() => onDone(), 2000);
     } catch (err) {
       setError(err.message);
       setLoading(false);
     }
   };
+
+  if (done) {
+    return (
+      <div style={{ minHeight: "100vh", background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: p }}>
+        <div style={{ width: "100%", maxWidth: 480, textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: c.text, marginBottom: 8 }}>You're all set!</div>
+          <div style={{ ...card, padding: 20, textAlign: "left", marginTop: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: c.success, marginBottom: 8 }}>✓ School registered and active</div>
+            <div style={{ fontSize: 13, color: c.textMid, lineHeight: 1.7 }}>
+              You've been given <strong style={{ color: c.accent }}>100 free evaluation credits</strong> to get started.
+              Each answer sheet costs 1 credit to grade. Start by uploading your first question paper.
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: c.textDim, marginTop: 16 }}>Taking you to your dashboard…</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: p }}>
@@ -30,8 +52,8 @@ export default function SchoolSetup({ onDone, isMobile }) {
           <div style={{ fontSize: 32, marginBottom: 8 }}>🏫</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: c.text, marginBottom: 6 }}>Register Your School</div>
           <div style={{ fontSize: 13, color: c.textMid, lineHeight: 1.6 }}>
-            One-time setup. Once registered, your school will be reviewed and approved.
-            You'll get access within 24 hours.
+            One-time setup — your school is approved instantly.{" "}
+            <strong style={{ color: c.accent }}>100 free evaluation credits</strong> included.
           </div>
         </div>
 
@@ -58,7 +80,7 @@ export default function SchoolSetup({ onDone, isMobile }) {
 
           <button type="submit" style={{ ...btn.primary, padding: 12, opacity: loading ? 0.6 : 1 }}
             disabled={loading || !name.trim()}>
-            {loading ? "Registering…" : "Register School →"}
+            {loading ? "Setting up…" : "Get Started Free →"}
           </button>
         </form>
 
