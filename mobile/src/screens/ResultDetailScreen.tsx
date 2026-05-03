@@ -18,6 +18,7 @@ import {
 import { WebView } from "react-native-webview";
 import { api } from "../lib/api";
 import { c } from "../lib/theme";
+import { shareUrl } from "../lib/branding";
 
 // ─── Score ring ───────────────────────────────────────────────────────────────
 function ScoreRing({ pct }: { pct: number }) {
@@ -157,7 +158,7 @@ export default function ResultDetailScreen({ route, navigation }: any) {
 
   const shareResult = () => {
     if (!result?.share_token) return;
-    const url = `https://app.kelzo.ai/share/${result.share_token}`;
+    const url = shareUrl(result.share_token);
     Share.share({ message: url, url });
   };
 

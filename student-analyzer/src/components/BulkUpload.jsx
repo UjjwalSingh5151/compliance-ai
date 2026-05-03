@@ -22,6 +22,7 @@ export default function BulkUpload({ params, navigate, isMobile }) {
   const [items, setItems] = useState([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  const [streamError, setStreamError] = useState(null);
   const fileRef = useRef();
   const p = isMobile ? 16 : 28;
 
@@ -40,7 +41,7 @@ export default function BulkUpload({ params, navigate, isMobile }) {
 
   const analyze = async () => {
     if (!files.length || running) return;
-    setRunning(true); setDone(false);
+    setRunning(true); setDone(false); setStreamError(null);
     setItems((prev) => prev.map((it) => ({ ...it, status: "waiting", analysis: null, error: null })));
     try {
       await api.analyzeSheets(testId, files, (event) => {
@@ -52,11 +53,22 @@ export default function BulkUpload({ params, navigate, isMobile }) {
           ));
         } else if (event.type === "error") {
           setItems((prev) => prev.map((it, i) => i === event.index ? { ...it, status: "error", error: event.error } : it));
+        } else if (event.type === "fatal") {
+          setStreamError(event.error || "Server error during analysis");
         } else if (event.type === "done") {
           setDone(true);
         }
       });
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      // Network drop, timeout, or server crash mid-stream — mark all unfinished items as failed
+      const msg = err.message || "Connection lost";
+      setStreamError(msg);
+      setItems((prev) => prev.map((it) =>
+        (it.status === "waiting" || it.status === "analyzing")
+          ? { ...it, status: "error", error: "Upload interrupted — " + msg }
+          : it
+      ));
+    }
     finally { setRunning(false); setDone(true); }
   };
 
@@ -119,6 +131,17 @@ export default function BulkUpload({ params, navigate, isMobile }) {
           </div>
           <div style={{ height: 4, background: c.border, borderRadius: 2 }}>
             <div style={{ height: "100%", background: c.accent, borderRadius: 2, transition: "width 0.3s", width: `${((doneCount + errCount) / items.length) * 100}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* Stream error banner */}
+      {streamError && (
+        <div style={{ background: `${c.danger}15`, border: `1px solid ${c.danger}40`, borderRadius: 8, padding: "12px 16px", marginBottom: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: c.danger, marginBottom: 2 }}>Upload interrupted</div>
+            <div style={{ fontSize: 12, color: c.textMid }}>{streamError}. Any completed sheets were saved.</div>
           </div>
         </div>
       )}

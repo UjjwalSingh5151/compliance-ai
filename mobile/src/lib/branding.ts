@@ -16,3 +16,7 @@ export const BRAND = {
   appStoreUrl:    null as string | null,
   playStoreUrl:   null as string | null,
 };
+
+/** Builds a shareable result URL. Single source of truth for the app domain. */
+export const shareUrl = (token: string): string =>
+  `${BRAND.schoolPortalUrl}/share/${token}`;

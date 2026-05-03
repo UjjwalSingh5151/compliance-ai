@@ -175,18 +175,35 @@ function PlanModal({ data, onClose, isMobile }) {
 function TeacherDetail({ teacherId, teacherName, onBack, isMobile }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showPlan, setShowPlan] = useState(false);
   const p = isMobile ? 16 : 24;
 
-  useEffect(() => {
+  const loadTeacher = () => {
+    setLoading(true);
+    setError(null);
     api.getTeacherAnalytics(teacherId)
       .then(setData)
-      .catch((e) => console.error(e))
+      .catch((e) => setError(e.message || "Failed to load"))
       .finally(() => setLoading(false));
-  }, [teacherId]);
+  };
+
+  useEffect(loadTeacher, [teacherId]);
 
   if (loading) return <div style={{ padding: p, color: c.textDim, fontSize: 13 }}>Loading…</div>;
-  if (!data) return <div style={{ padding: p, color: c.danger, fontSize: 13 }}>Failed to load.</div>;
+  if (error || !data) return (
+    <div style={{ padding: p }}>
+      <button style={{ ...btn.ghost, marginBottom: 16, paddingLeft: 0, color: c.textMid }} onClick={onBack}>← Back</button>
+      <div style={{ background: `${c.danger}15`, border: `1px solid ${c.danger}40`, borderRadius: 10, padding: "16px 20px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <span style={{ fontSize: 18 }}>⚠️</span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: c.danger, marginBottom: 4 }}>Failed to load teacher analytics</div>
+          <div style={{ fontSize: 13, color: c.textMid, marginBottom: 12 }}>{error || "Unexpected error"}</div>
+          <button style={{ ...btn.secondary, fontSize: 12 }} onClick={loadTeacher}>Try again</button>
+        </div>
+      </div>
+    </div>
+  );
 
   const subjectLabel = data.teacher.subjects?.join(", ") || "—";
 
@@ -293,6 +310,7 @@ function TeacherDetail({ teacherId, teacherName, onBack, isMobile }) {
 export default function Analytics({ isMobile, schoolRole }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [tab, setTab] = useState("overview"); // "overview" | "teachers"
   const [drillTeacherId, setDrillTeacherId] = useState(null);
   const [drillTeacherName, setDrillTeacherName] = useState("");
@@ -303,9 +321,10 @@ export default function Analytics({ isMobile, schoolRole }) {
 
   const load = () => {
     setLoading(true);
+    setError(null);
     api.getMyAnalytics()
       .then(setData)
-      .catch((e) => console.error(e))
+      .catch((e) => setError(e.message || "Failed to load analytics"))
       .finally(() => setLoading(false));
   };
 
@@ -315,6 +334,21 @@ export default function Analytics({ isMobile, schoolRole }) {
     return (
       <div style={{ padding: p, display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
         <div style={{ fontSize: 13, color: c.textDim }}>Loading analytics…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: p }}>
+        <div style={{ background: `${c.danger}15`, border: `1px solid ${c.danger}40`, borderRadius: 10, padding: "16px 20px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: c.danger, marginBottom: 4 }}>Failed to load analytics</div>
+            <div style={{ fontSize: 13, color: c.textMid, marginBottom: 12 }}>{error}</div>
+            <button style={{ ...btn.secondary, fontSize: 12 }} onClick={load}>Try again</button>
+          </div>
+        </div>
       </div>
     );
   }

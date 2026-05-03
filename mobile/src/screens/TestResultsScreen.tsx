@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "../lib/api";
 import { c } from "../lib/theme";
+import { shareUrl } from "../lib/branding";
 
 function ScoreBadge({ obtained, total }: { obtained: number; total: number }) {
   const pct = total ? Math.round((obtained / total) * 100) : 0;
@@ -54,7 +55,7 @@ export default function TestResultsScreen({ route, navigation }: any) {
       : "";
 
     const shareResult = () => {
-      const url = `https://app.kelzo.ai/share/${item.share_token}`;
+      const url = shareUrl(item.share_token);
       Share.share({ message: url, url });
     };
 

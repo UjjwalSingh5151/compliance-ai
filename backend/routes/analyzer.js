@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   supabaseAdmin, client, upload,
   LENIENCY_PROMPTS, fileToClaudeContent, uploadToStorage,
-  getRequestUser, getUserSchool, getPDFPageCount, deductCredits,
+  getRequestUser, getUserSchool, getPDFPageCount, checkCredits, deductCredits,
 } from "../lib/shared.js";
 import { traceGrading, scoreGrading } from "../lib/langfuse.js";
 
@@ -169,11 +169,10 @@ router.post("/tests/:testId/analyze", upload.array("sheets", 50), async (req, re
           }
         }
 
-        // ── Credit deduction ────────────────────────────────────────────────
+        // ── Pre-check credits (read-only — no deduction yet) ─────────────────
+        // Deduction happens AFTER Claude succeeds so a failed API call never costs credits.
         const creditCost = file.mimetype === "application/pdf" ? (pdfPageCount || 1) : 1;
-        const { ok: hasCredits } = await deductCredits(
-          schoolId, creditCost, "analyze", `Sheet: ${file.originalname}`
-        );
+        const { ok: hasCredits } = await checkCredits(schoolId, creditCost);
         if (!hasCredits) {
           send({ type: "error", index: i, filename: file.originalname, error: `Insufficient credits. This file requires ${creditCost} credit(s). Ask your admin to add more credits.` });
           continue;
@@ -253,6 +252,10 @@ IMPORTANT: Your entire response must be a single valid JSON object. No markdown,
           console.error(`[analyze] parse failed for ${file.originalname}. stop_reason=${response.stop_reason} snippet=${rawText.slice(0, 200)}`);
           analysis = { parse_error: true, raw: rawText, marks_obtained: 0, total_marks: totalMarks };
         }
+
+        // ── Deduct credits AFTER successful Claude response ───────────────────
+        // If Claude threw above, this line is never reached — no credits lost on API failure.
+        await deductCredits(schoolId, creditCost, "analyze", `Sheet: ${file.originalname}`);
 
         const student = analysis.student || {};
         let studentId = null, sheetUrl = null, resultId = null, shareToken = null;

@@ -49,6 +49,21 @@ export function fileToClaudeContent(file) {
 }
 
 // ─── Credits ──────────────────────────────────────────────────────────────────
+
+// Read-only credit check — does NOT deduct.
+// Use before expensive API calls to give an early "insufficient credits" error.
+// Returns { ok: true } if the school has enough, { ok: false } if not.
+// Never throws — DB errors are treated as ok so analysis is never blocked by billing.
+export async function checkCredits(schoolId, amount) {
+  if (!supabaseAdmin || !schoolId || !amount) return { ok: true };
+  try {
+    const { data: school, error } = await supabaseAdmin
+      .from("schools").select("credits").eq("id", schoolId).single();
+    if (error) { console.warn("checkCredits fetch:", error.message); return { ok: true }; }
+    return { ok: (school?.credits ?? 0) >= amount };
+  } catch (e) { console.warn("checkCredits:", e.message); return { ok: true }; }
+}
+
 // Deduct credits from a school atomically.
 // Returns { ok: true } on success or { ok: false, error: "insufficient_credits" }.
 // Never throws — DB errors are logged and treated as ok so analysis is never blocked by billing.

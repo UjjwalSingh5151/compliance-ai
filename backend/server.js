@@ -40,6 +40,18 @@ app.use(cors({
 
 app.use(express.json({ limit: "50mb" }));
 
+// ─── Request logger ───────────────────────────────────────────────────────────
+// Logs: METHOD /path STATUS Xms  (SSE streams log when the connection closes)
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    const lvl = res.statusCode >= 500 ? "ERROR" : res.statusCode >= 400 ? "WARN" : "INFO";
+    console.log(`[${lvl}] ${req.method} ${req.path} ${res.statusCode} ${ms}ms`);
+  });
+  next();
+});
+
 // ─── Health & Auth ────────────────────────────────────────────────────────────
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));

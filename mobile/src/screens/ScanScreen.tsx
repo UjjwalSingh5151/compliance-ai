@@ -18,6 +18,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { photosToPDF, PhotoPage } from "../lib/pdf";
 import { api } from "../lib/api";
+import { shareUrl } from "../lib/branding";
 import { c } from "../lib/theme";
 import { logError } from "../lib/errorLog";
 
@@ -43,7 +44,7 @@ interface ScanResult {
 // ─── Result card ──────────────────────────────────────────────────────────────
 function ResultCard({ result, totalMarks }: { result: ScanResult; totalMarks: number }) {
   const shareResult = () => {
-    const url = `https://app.kelzo.ai/share/${result.shareToken}`;
+    const url = shareUrl(result.shareToken!);
     Share.share({ message: url, url });
   };
 
