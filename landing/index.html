@@ -3,369 +3,1058 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EduGrade — AI-powered answer sheet grading</title>
-  <meta name="description" content="Grade answer sheets in seconds with AI. Built for schools, teachers, and students." />
-
-  <!-- ── BRANDING: change these ── -->
-  <!-- Product name: "EduGrade" — search & replace all occurrences        -->
-  <!-- Logo: replace the emoji in .logo-text or add <img> in .logo        -->
-  <!-- Colors: edit the :root CSS variables below                          -->
-  <!-- Domain: replace kelzo.ai with your domain                          -->
-
+  <title>Kelzo — AI-powered answer sheet grading for schools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
-    /* ── Design tokens — change here to retheme everything ── */
-    :root {
-      --bg:          #0d1117;
-      --bg2:         #161b22;
-      --border:      #30363d;
-      --text:        #e6edf3;
-      --text-mid:    #8b949e;
-      --text-dim:    #484f58;
-      --accent:      #3b82f6;
-      --accent-dim:  #1d3a6e;
-      --success:     #22c55e;
-      --warning:     #f59e0b;
-      --purple:      #a78bfa;
-      --radius:      12px;
-      --radius-lg:   20px;
-      --font:        -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font);
-      line-height: 1.6;
+      background: #0d1117;
+      color: #e8ecf4;
+      font-family: 'DM Sans', sans-serif;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
+    a { text-decoration: none; }
 
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    /* ── TOKENS ── */
+    :root {
+      --navy:    #0d1117;
+      --navy2:   #161b27;
+      --navy3:   #1e2638;
+      --indigo:  #5b6af9;
+      --indigoL: #818cf8;
+      --amber:   #f59e0b;
+      --white:   #f0f2ff;
+      --muted:   #8892a4;
+      --border:  rgba(255,255,255,0.07);
+      --green:   #34d399;
+      --red:     #f87171;
+      --mono:    'DM Mono', monospace;
+    }
 
-    /* ── Nav ── */
-    nav {
+    /* ── UTILS ── */
+    .mono { font-family: var(--mono); }
+    .label-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(91,106,249,0.12);
+      border: 1px solid rgba(91,106,249,0.25);
+      border-radius: 99px; padding: 5px 14px;
+      font-size: 12px; color: #818cf8;
+      font-family: var(--mono); letter-spacing: 0.04em;
+    }
+    .label-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .section-eyebrow {
+      font-size: 11px; font-family: var(--mono);
+      color: var(--indigo); letter-spacing: 0.12em;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+    .section-heading {
+      font-size: 34px; font-weight: 700;
+      letter-spacing: -0.03em; line-height: 1.15;
+      color: var(--white);
+    }
+    .section-sub {
+      font-size: 16px; color: var(--muted);
+      line-height: 1.65; margin-top: 12px;
+    }
+    .btn-primary {
+      display: inline-block;
+      background: var(--indigo); color: #fff;
+      font-size: 14px; font-weight: 600;
+      padding: 12px 22px; border-radius: 9px;
+      border: none; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover { background: #6b7aff; transform: translateY(-1px); }
+    .btn-ghost {
+      display: inline-block;
+      border: 1px solid var(--border);
+      color: var(--muted); font-size: 14px;
+      padding: 12px 22px; border-radius: 9px;
+      font-family: 'DM Sans', sans-serif;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: var(--white); }
+    .divider { height: 1px; background: var(--border); }
+
+    /* ── NAVBAR ── */
+    #navbar {
       position: sticky; top: 0; z-index: 100;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 40px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 52px; height: 62px;
       background: rgba(13,17,23,0.85);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
-    .logo { display: flex; align-items: center; gap: 10px; }
-    .logo-text { font-size: 20px; font-weight: 700; color: var(--text); }
-    /* BRANDING: replace emoji with <img src="logo.svg"> when ready */
-    .logo-emoji { font-size: 24px; }
+    .nav-logo { display: flex; align-items: center; gap: 10px; }
+    .nav-logo-mark {
+      width: 26px; height: 26px; border-radius: 7px;
+      background: var(--indigo);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: #fff;
+      font-family: var(--mono);
+    }
+    .nav-logo-text { font-size: 15px; font-weight: 600; color: var(--white); letter-spacing: -0.01em; }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { font-size: 13.5px; color: var(--muted); transition: color 0.15s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-actions { display: flex; gap: 10px; align-items: center; }
+    .nav-actions .signup { font-size: 13px; color: var(--muted); transition: color 0.15s; }
+    .nav-actions .signup:hover { color: var(--white); }
+    .nav-actions .login-btn {
+      background: var(--indigo); color: #fff;
+      font-size: 13px; font-weight: 600;
+      padding: 7px 16px; border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .nav-actions .login-btn:hover { background: #6b7aff; }
 
-    .nav-links { display: flex; align-items: center; gap: 24px; }
-    .nav-links a { font-size: 14px; color: var(--text-mid); }
-    .nav-links a:hover { color: var(--text); text-decoration: none; }
-    .btn-nav {
-      background: var(--accent); color: #fff !important;
-      padding: 8px 18px; border-radius: 8px; font-weight: 600; font-size: 14px;
+    /* ── HERO ── */
+    #hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      padding: 80px 52px 72px;
+      max-width: 1200px;
+      margin: 0 auto;
+      align-items: center;
     }
-    .btn-nav:hover { opacity: 0.9; text-decoration: none !important; }
+    #hero h1 {
+      font-size: 52px; font-weight: 700;
+      letter-spacing: -0.04em; line-height: 1.08;
+      color: var(--white); margin-bottom: 20px;
+    }
+    #hero h1 span { color: var(--indigo); }
+    #hero p { font-size: 16.5px; color: var(--muted); line-height: 1.65; max-width: 440px; margin-bottom: 32px; }
+    .hero-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+    .hero-demo-link {
+      color: var(--muted); font-size: 14px;
+      display: flex; align-items: center; gap: 7px;
+      transition: color 0.15s;
+    }
+    .hero-demo-link:hover { color: var(--white); }
+    .hero-demo-link .play-circle {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+    }
+    .hero-note { font-size: 12px; color: #5a6478; }
+    .hero-stats {
+      display: flex; gap: 28px;
+      margin-top: 36px; padding-top: 28px;
+      border-top: 1px solid var(--border);
+    }
+    .hero-stat-n { font-size: 22px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.03em; color: var(--white); }
+    .hero-stat-l { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-    /* ── Hero ── */
-    .hero {
-      text-align: center;
-      padding: 100px 24px 80px;
-      max-width: 800px; margin: 0 auto;
+    /* Grading card */
+    #hero-card {
+      display: flex; justify-content: center; align-items: center;
+      position: relative;
     }
-    .hero-badge {
-      display: inline-block;
-      background: var(--accent-dim); color: var(--accent);
-      border: 1px solid rgba(59,130,246,0.3);
-      padding: 5px 14px; border-radius: 20px;
-      font-size: 13px; font-weight: 600; margin-bottom: 28px;
+    #hero-card .glow {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 50%, rgba(91,106,249,0.2) 0%, transparent 68%);
+      pointer-events: none;
     }
-    .hero h1 {
-      font-size: clamp(36px, 6vw, 64px);
-      font-weight: 800; line-height: 1.15;
-      letter-spacing: -1px; margin-bottom: 20px;
+    .grading-card {
+      background: #12192b;
+      border: 1px solid rgba(91,106,249,0.25);
+      border-radius: 16px;
+      padding: 20px 22px;
+      width: 340px;
+      box-shadow: 0 32px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(91,106,249,0.1);
+      position: relative; z-index: 1;
     }
-    .hero h1 span { color: var(--accent); }
-    .hero p {
-      font-size: 18px; color: var(--text-mid);
-      max-width: 540px; margin: 0 auto 40px;
-    }
-    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-    .btn-primary {
-      background: var(--accent); color: #fff;
-      padding: 14px 28px; border-radius: var(--radius);
-      font-weight: 700; font-size: 15px; display: inline-block;
-      transition: opacity 0.15s;
-    }
-    .btn-primary:hover { opacity: 0.9; text-decoration: none; }
-    .btn-secondary {
-      background: var(--bg2); color: var(--text);
-      border: 1px solid var(--border);
-      padding: 14px 28px; border-radius: var(--radius);
-      font-weight: 600; font-size: 15px; display: inline-block;
-    }
-    .btn-secondary:hover { border-color: var(--accent); text-decoration: none; }
+    .gc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+    .gc-student-label { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 4px; }
+    .gc-student-name { font-size: 14px; color: var(--white); font-weight: 600; }
+    .gc-student-sub { font-size: 11px; color: var(--muted); }
+    .gc-score { text-align: right; }
+    .gc-score-n { font-size: 28px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.03em; color: #34d399; line-height: 1; }
+    .gc-score-pct { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+    .gc-divider { height: 1px; background: var(--border); margin-bottom: 12px; }
+    .gc-row { margin-bottom: 10px; }
+    .gc-row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+    .gc-q { font-size: 11px; font-family: var(--mono); color: var(--indigoL); letter-spacing: 0.05em; }
+    .gc-marks { font-size: 11px; font-family: var(--mono); }
+    .gc-bar-bg { height: 3px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; margin-bottom: 4px; }
+    .gc-bar-fill { height: 100%; border-radius: 99px; }
+    .gc-feedback { font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+    .gc-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .gc-footer-time { font-size: 10px; color: var(--muted); }
+    .gc-footer-time span { color: var(--indigoL); font-family: var(--mono); }
+    .gc-footer-wa { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+    .gc-footer-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
 
-    /* ── Stats bar ── */
-    .stats {
-      display: flex; justify-content: center; gap: 48px; flex-wrap: wrap;
-      padding: 32px 24px;
+    /* ── TRUST BAR ── */
+    #trust-bar {
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
-      background: var(--bg2);
+      background: rgba(255,255,255,0.02);
+      padding: 16px 52px;
+      display: flex; align-items: center; justify-content: center; gap: 0;
     }
-    .stat { text-align: center; }
-    .stat-num { font-size: 28px; font-weight: 800; color: var(--accent); }
-    .stat-label { font-size: 13px; color: var(--text-mid); margin-top: 2px; }
+    .trust-stat {
+      text-align: center; padding: 0 40px;
+      border-right: 1px solid var(--border);
+    }
+    .trust-stat:last-child { border-right: none; }
+    .trust-stat-n { font-size: 20px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.03em; color: var(--white); }
+    .trust-stat-l { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-    /* ── Section ── */
-    section { padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
-    .section-label {
-      font-size: 12px; font-weight: 700; color: var(--accent);
-      letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px;
-    }
-    .section-title {
-      font-size: clamp(26px, 4vw, 40px); font-weight: 800;
-      line-height: 1.2; margin-bottom: 16px;
-    }
-    .section-sub { font-size: 16px; color: var(--text-mid); max-width: 520px; }
-
-    /* ── Features grid ── */
+    /* ── FEATURES ── */
+    #features { padding: 80px 52px; max-width: 1200px; margin: 0 auto; }
+    #features .intro { text-align: center; margin-bottom: 52px; }
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 16px; margin-top: 48px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
     }
-    .feature-card {
-      background: var(--bg2); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 28px;
-      transition: border-color 0.2s;
+    .feat-card {
+      background: var(--navy2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 28px 32px;
+      transition: border-color 0.2s, transform 0.2s;
     }
-    .feature-card:hover { border-color: var(--accent); }
-    .feature-icon { font-size: 32px; margin-bottom: 16px; }
-    .feature-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-    .feature-desc { font-size: 14px; color: var(--text-mid); line-height: 1.65; }
+    .feat-card:hover { border-color: rgba(91,106,249,0.35); transform: translateY(-2px); }
+    .feat-card.featured {
+      border-color: rgba(91,106,249,0.45);
+      background: linear-gradient(135deg, #161b27 0%, #1a1f38 100%);
+    }
+    .feat-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: rgba(91,106,249,0.12);
+      border: 1px solid rgba(91,106,249,0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px; font-size: 18px;
+    }
+    .feat-title { font-size: 16px; font-weight: 600; color: var(--white); margin-bottom: 8px; letter-spacing: -0.02em; }
+    .feat-body { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
 
-    /* ── Who is it for ── */
-    .personas {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px; margin-top: 48px;
+    /* ── HOW IT WORKS ── */
+    #how { padding: 80px 52px; background: var(--navy2); }
+    #how .inner { max-width: 1200px; margin: 0 auto; }
+    #how .intro { text-align: center; margin-bottom: 52px; }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
     }
-    .persona-card {
-      background: var(--bg2); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 28px;
+    .step-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 30px 28px 34px;
+      position: relative;
     }
-    .persona-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-    .persona-subtitle { font-size: 13px; color: var(--accent); font-weight: 600; margin-bottom: 14px; }
-    .persona-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-    .persona-list li { font-size: 14px; color: var(--text-mid); display: flex; gap: 8px; }
-    .persona-list li::before { content: "✓"; color: var(--success); flex-shrink: 0; }
+    .step-number {
+      font-size: 11px; font-family: var(--mono);
+      color: var(--indigo); letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+    .step-title { font-size: 17px; font-weight: 600; color: var(--white); margin-bottom: 10px; letter-spacing: -0.02em; }
+    .step-body { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+    .step-connector {
+      position: absolute; top: 50%; right: -12px;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--navy2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: var(--indigo); z-index: 1;
+    }
 
-    /* ── CTA band ── */
-    .cta-band {
-      background: linear-gradient(135deg, var(--accent-dim) 0%, #0d1117 100%);
-      border: 1px solid rgba(59,130,246,0.25);
-      border-radius: var(--radius-lg); padding: 60px 40px;
-      text-align: center; margin: 0 24px;
+    /* ── WHO ITS FOR (ROLES) ── */
+    #roles { padding: 80px 52px; max-width: 1200px; margin: 0 auto; }
+    #roles .intro { text-align: center; margin-bottom: 40px; }
+    .role-tabs {
+      display: flex; gap: 4px; justify-content: center;
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px; padding: 4px;
+      width: fit-content; margin: 0 auto 32px;
     }
-    .cta-band h2 { font-size: 32px; font-weight: 800; margin-bottom: 12px; }
-    .cta-band p { font-size: 16px; color: var(--text-mid); margin-bottom: 32px; }
-    .cta-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .role-tab {
+      padding: 8px 22px; border-radius: 7px; border: none;
+      cursor: pointer; font-size: 13.5px; font-weight: 500;
+      background: transparent; color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.15s;
+    }
+    .role-tab.active {
+      background: var(--navy3);
+      color: var(--white);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .role-panel {
+      background: var(--navy2); border: 1px solid var(--border);
+      border-radius: 16px; padding: 40px 44px;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 52px; align-items: center;
+    }
+    .role-panel-tagline { font-size: 22px; font-weight: 700; color: var(--white); letter-spacing: -0.03em; margin-bottom: 18px; }
+    .role-bullets { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
+    .role-bullet { display: flex; gap: 12px; align-items: flex-start; }
+    .role-bullet-dot {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(91,106,249,0.15);
+      border: 1px solid rgba(91,106,249,0.3);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .role-bullet-dot-inner { width: 5px; height: 5px; border-radius: 50%; background: var(--indigo); }
+    .role-bullet-text { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+    .role-visual {
+      background: rgba(255,255,255,0.03);
+      border: 1px dashed rgba(255,255,255,0.1);
+      border-radius: 12px; height: 220px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+    }
+    .role-visual-label { font-size: 11px; color: #3a4258; font-family: var(--mono); text-align: center; line-height: 1.6; }
 
-    /* ── Footer ── */
-    footer {
+    /* ── PRICING ── */
+    #pricing { padding: 80px 52px; background: var(--navy2); }
+    #pricing .inner { max-width: 1100px; margin: 0 auto; }
+    #pricing .intro { text-align: center; margin-bottom: 52px; }
+    .pricing-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    }
+    .pricing-card {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px 28px 36px;
+      display: flex; flex-direction: column;
+    }
+    .pricing-card.popular {
+      border-color: rgba(91,106,249,0.5);
+      background: linear-gradient(160deg, #161b2e 0%, #1a1f3a 100%);
+      position: relative;
+    }
+    .popular-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--indigo); color: #fff;
+      font-size: 11px; font-weight: 600;
+      font-family: var(--mono); letter-spacing: 0.06em;
+      padding: 4px 14px; border-radius: 99px;
+    }
+    .pricing-tier { font-size: 12px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 10px; }
+    .pricing-price { font-size: 36px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.04em; color: var(--white); line-height: 1; margin-bottom: 4px; }
+    .pricing-price span { font-size: 16px; font-weight: 400; color: var(--muted); }
+    .pricing-desc { font-size: 13px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+    .pricing-divider { height: 1px; background: var(--border); margin-bottom: 20px; }
+    .pricing-features { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; flex: 1; }
+    .pricing-feature { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); }
+    .pricing-check { color: var(--green); font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .pricing-card .btn-primary { text-align: center; }
+    .pricing-card .btn-ghost { text-align: center; }
+
+    /* ── TESTIMONIALS ── */
+    #testimonials { padding: 80px 52px; max-width: 1200px; margin: 0 auto; }
+    #testimonials .intro { text-align: center; margin-bottom: 52px; }
+    .testi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .testi-card {
+      background: var(--navy2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px;
+    }
+    .testi-quote { font-size: 14px; color: #bcc5d6; line-height: 1.65; margin-bottom: 20px; font-style: italic; }
+    .testi-author { display: flex; align-items: center; gap: 12px; }
+    .testi-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--navy3);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 600; color: var(--indigoL);
+      font-family: var(--mono); flex-shrink: 0;
+    }
+    .testi-name { font-size: 13px; font-weight: 600; color: var(--white); }
+    .testi-role { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ── FAQ ── */
+    #faq { padding: 80px 52px; background: var(--navy2); }
+    #faq .inner { max-width: 780px; margin: 0 auto; }
+    #faq .intro { text-align: center; margin-bottom: 48px; }
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+    }
+    .faq-question {
+      width: 100%; text-align: left; background: none; border: none;
+      padding: 20px 0; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 15px; font-weight: 500; color: var(--white);
+      font-family: 'DM Sans', sans-serif;
+      transition: color 0.15s;
+    }
+    .faq-question:hover { color: var(--indigoL); }
+    .faq-icon { font-size: 18px; color: var(--muted); transition: transform 0.25s; flex-shrink: 0; }
+    .faq-icon.open { transform: rotate(45deg); }
+    .faq-answer {
+      overflow: hidden; max-height: 0;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+    .faq-answer.open { max-height: 300px; padding-bottom: 18px; }
+    .faq-answer p { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+    /* ── FINAL CTA ── */
+    #cta-footer {
+      padding: 96px 52px;
+      text-align: center;
       border-top: 1px solid var(--border);
-      padding: 40px; text-align: center;
-      color: var(--text-dim); font-size: 13px;
+      position: relative; overflow: hidden;
     }
-    footer a { color: var(--text-dim); }
-    footer a:hover { color: var(--text-mid); }
-    .footer-links { display: flex; gap: 24px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+    #cta-footer .cta-glow {
+      position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 400px;
+      background: radial-gradient(ellipse, rgba(91,106,249,0.12) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    #cta-footer h2 {
+      font-size: 42px; font-weight: 700;
+      letter-spacing: -0.04em; line-height: 1.1;
+      color: var(--white); margin-bottom: 14px;
+      position: relative;
+    }
+    #cta-footer p {
+      font-size: 16px; color: var(--muted);
+      margin-bottom: 32px; position: relative;
+    }
+    .cta-actions { display: flex; gap: 12px; justify-content: center; position: relative; }
 
-    /* ── Mobile ── */
-    @media (max-width: 640px) {
-      nav { padding: 14px 20px; }
-      .nav-links .hide-mobile { display: none; }
-      .hero { padding: 64px 20px 56px; }
-      .stats { gap: 32px; }
-      .cta-band { padding: 40px 24px; margin: 0 16px; }
-      footer { padding: 32px 20px; }
+    /* ── FOOTER ── */
+    #footer {
+      background: var(--navy2);
+      border-top: 1px solid var(--border);
+      padding: 48px 52px 36px;
     }
+    .footer-top {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px; margin-bottom: 40px;
+    }
+    .footer-brand-name { font-size: 15px; font-weight: 600; color: var(--white); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .footer-brand-desc { font-size: 13px; color: var(--muted); line-height: 1.6; max-width: 260px; }
+    .footer-col-title { font-size: 11px; color: var(--white); font-family: var(--mono); letter-spacing: 0.08em; margin-bottom: 14px; }
+    .footer-col-links { display: flex; flex-direction: column; gap: 9px; }
+    .footer-col-links a { font-size: 13px; color: var(--muted); transition: color 0.15s; }
+    .footer-col-links a:hover { color: var(--white); }
+    .footer-bottom {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 28px; border-top: 1px solid var(--border);
+      font-size: 12px; color: #3a4258;
+    }
+    .footer-bottom a { color: #3a4258; }
+    .footer-bottom a:hover { color: var(--muted); }
+    .powered-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; color: #3a4258; font-family: var(--mono);
+    }
+    .powered-badge .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--indigo); }
+
+    /* ── SCROLL ANIMATIONS ── */
+    .fade-up {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
 
-  <!-- ── Nav ──────────────────────────────────────────────────────────────── -->
-  <nav>
-    <div class="logo">
-      <!-- BRANDING: replace emoji with <img> when logo is ready -->
-      <span class="logo-emoji">📝</span>
-      <span class="logo-text">EduGrade</span>
-    </div>
-    <div class="nav-links">
-      <a href="#features" class="hide-mobile">Features</a>
-      <a href="#who" class="hide-mobile">Who it's for</a>
-      <a href="mailto:support@kelzo.ai" class="hide-mobile">Contact</a>
-      <!-- BRANDING: update href to your school portal URL -->
-      <a href="https://app.kelzo.ai" class="btn-nav">School Login →</a>
-    </div>
-  </nav>
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- NAVBAR                                                      -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<nav id="navbar">
+  <div class="nav-logo">
+    <div class="nav-logo-mark">K</div>
+    <span class="nav-logo-text">Kelzo</span>
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how">How it works</a>
+    <a href="#roles">Who it's for</a>
+    <a href="mailto:support@kelzo.ai">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <a href="https://app.kelzo.ai" class="signup">Sign up</a>
+    <a href="https://app.kelzo.ai" class="login-btn">School Login →</a>
+  </div>
+</nav>
 
-  <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
-  <div class="hero">
-    <div class="hero-badge">✨ AI-Powered Grading</div>
-    <h1>Grade answer sheets<br/><span>in seconds, not hours</span></h1>
-    <p>
-      AI-powered grading for schools. Teachers scan notebooks,
-      students get instant detailed feedback — question by question.
-    </p>
-    <div class="hero-ctas">
-      <!-- BRANDING: update href to your school portal URL -->
-      <a href="https://app.kelzo.ai" class="btn-primary">Get started — it's free</a>
-      <a href="#who" class="btn-secondary">See how it works ↓</a>
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- HERO                                                        -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section id="hero">
+  <!-- Left: copy -->
+  <div>
+    <div class="label-tag" style="margin-bottom: 28px;">
+      <span class="dot"></span>
+      Powered by AI · Free for your first 50 sheets
+    </div>
+    <h1>Grade answer sheets <span>in seconds</span>, not hours.</h1>
+    <p>AI-powered grading for CBSE &amp; ICSE schools. Teachers scan notebooks students get instant, question-by-question feedback and personalised improvement notes.</p>
+    <div class="hero-actions">
+      <a href="https://app.kelzo.ai" class="btn-primary">Start grading free →</a>
+    </div>
+    <div class="hero-note">No credit card · No setup · Works for all boards CBSE, ICSE &amp; State</div>
+    <div class="hero-stats">
+      <div>
+        <div class="hero-stat-n">28s</div>
+        <div class="hero-stat-l">avg. grading time</div>
+      </div>
+      <div>
+        <div class="hero-stat-n">340+</div>
+        <div class="hero-stat-l">teachers onboarded</div>
+      </div>
+      <div>
+        <div class="hero-stat-n">12k+</div>
+        <div class="hero-stat-l">sheets graded</div>
+      </div>
     </div>
   </div>
 
-  <!-- ── Stats ─────────────────────────────────────────────────────────────── -->
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-num">~30s</div>
-      <div class="stat-label">per answer sheet</div>
+  <!-- Right: grading card -->
+  <div id="hero-card">
+    <div class="glow"></div>
+    <div class="grading-card">
+      <div class="gc-header">
+        <div>
+          <div class="gc-student-label mono">PHYSICS · CLASS 11 · TEST 3</div>
+          <div class="gc-student-name">Aryan Sharma</div>
+          <div class="gc-student-sub">Roll No. 24 · Section B</div>
+        </div>
+        <div class="gc-score">
+          <div class="gc-score-n">14/20</div>
+          <div class="gc-score-pct mono">70% · B+</div>
+        </div>
+      </div>
+      <div class="gc-divider"></div>
+      <!-- Q1 -->
+      <div class="gc-row">
+        <div class="gc-row-head">
+          <span class="gc-q">Q1</span>
+          <span class="gc-marks" style="color: #f59e0b;">4/5</span>
+        </div>
+        <div class="gc-bar-bg"><div class="gc-bar-fill" style="width:80%; background:#f59e0b;"></div></div>
+        <div class="gc-feedback">Good explanation of Newton's 2nd law. Unit analysis was missing.</div>
+      </div>
+      <!-- Q2 -->
+      <div class="gc-row">
+        <div class="gc-row-head">
+          <span class="gc-q">Q2</span>
+          <span class="gc-marks" style="color: #34d399;">5/5</span>
+        </div>
+        <div class="gc-bar-bg"><div class="gc-bar-fill" style="width:100%; background:#34d399;"></div></div>
+        <div class="gc-feedback">Excellent perfect derivation with clear steps.</div>
+      </div>
+      <!-- Q3 -->
+      <div class="gc-row">
+        <div class="gc-row-head">
+          <span class="gc-q">Q3</span>
+          <span class="gc-marks" style="color: #f59e0b;">3/5</span>
+        </div>
+        <div class="gc-bar-bg"><div class="gc-bar-fill" style="width:60%; background:#f59e0b;"></div></div>
+        <div class="gc-feedback">Partial credit. The friction component was missing from the system.</div>
+      </div>
+      <!-- Q4 -->
+      <div class="gc-row">
+        <div class="gc-row-head">
+          <span class="gc-q">Q4</span>
+          <span class="gc-marks" style="color: #f87171;">2/5</span>
+        </div>
+        <div class="gc-bar-bg"><div class="gc-bar-fill" style="width:40%; background:#f87171;"></div></div>
+        <div class="gc-feedback">Conceptual error revisit conservation of momentum.</div>
+      </div>
+      <div class="gc-footer">
+        <div class="gc-footer-time">Graded in <span>28s</span></div>
+        <div class="gc-footer-wa">
+          <div class="gc-footer-dot"></div>
+          Shared via WhatsApp
+        </div>
+      </div>
     </div>
-    <div class="stat">
-      <div class="stat-num">Q-by-Q</div>
-      <div class="stat-label">feedback per student</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">Any subject</div>
-      <div class="stat-label">works for all boards</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">0 setup</div>
-      <div class="stat-label">scan & go</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- TRUST BAR                                                   -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="trust-bar">
+  <div class="trust-stat">
+    <div class="trust-stat-n">12,000+</div>
+    <div class="trust-stat-l">answer sheets graded</div>
+  </div>
+  <div class="trust-stat">
+    <div class="trust-stat-n">340+</div>
+    <div class="trust-stat-l">teachers onboarded</div>
+  </div>
+  <div class="trust-stat">
+    <div class="trust-stat-n">28s</div>
+    <div class="trust-stat-l">average grading time</div>
+  </div>
+  <div class="trust-stat">
+    <div class="trust-stat-n">4.9 ★</div>
+    <div class="trust-stat-l">teacher satisfaction</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- FEATURES                                                    -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<style>
+  .feat-layout-btn {
+    padding: 7px 18px; border-radius: 7px; border: none;
+    cursor: pointer; font-size: 13px; font-weight: 500;
+    background: transparent; color: var(--muted);
+    font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  }
+  .feat-layout-btn.active { background: var(--navy3); color: var(--white); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+  .spot-nav-btn {
+    width: 100%; text-align: left; padding: 12px 16px;
+    border-radius: 9px; border: 1px solid transparent;
+    background: transparent; color: var(--muted);
+    font-size: 13.5px; font-weight: 500; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  }
+  .spot-nav-btn:hover { background: var(--navy2); color: var(--white); }
+  .spot-nav-btn.active { background: var(--navy2); border-color: rgba(91,106,249,0.3); color: var(--white); }
+</style>
+<section id="features" style="padding: 80px 52px; max-width:1200px; margin:0 auto;">
+  <div class="fade-up" style="text-align:center; margin-bottom:40px;">
+    <div class="section-eyebrow">Features</div>
+    <div class="section-heading">Everything your school needs.</div>
+    <div class="section-sub" style="max-width:480px; margin:12px auto 0;">From scanning a single sheet to managing hundreds of students across all classes.</div>
+  </div>
+
+
+
+  <!-- LAYOUT A: BENTO GRID -->
+  <div id="feat-bento">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:auto auto;gap:16px;">
+      <div style="grid-row:1/3;background:linear-gradient(145deg,#161b35,#1a2040);border:1px solid rgba(91,106,249,0.4);border-radius:18px;padding:36px;display:flex;flex-direction:column;justify-content:space-between;min-height:320px;">
+        <div>
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(91,106,249,0.2);border:1px solid rgba(91,106,249,0.4);display:flex;align-items:center;justify-content:center;margin-bottom:20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div>
+          <div style="font-size:20px;font-weight:700;color:var(--white);letter-spacing:-0.03em;margin-bottom:10px;">AI grading, question by question</div>
+          <div style="font-size:14px;color:var(--muted);line-height:1.65;">Our AI reads the question paper and each student's answers. It awards marks per question, flags conceptual errors, and writes personalised feedback in about 28 seconds per sheet.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:24px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>
+          <span style="font-size:12px;color:var(--muted);font-family:var(--mono);">28s per sheet · Live</span>
+        </div>
+      </div>
+      <div style="background:var(--navy2);border:1px solid var(--border);border-radius:18px;padding:28px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(91,106,249,0.3)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:16px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"/></svg></div>
+        <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:8px;letter-spacing:-0.02em;">Scan from mobile</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;">Photograph answer sheets with your phone. Pages are auto-stitched into one PDF. No scanner needed.</div>
+      </div>
+      <div style="background:var(--navy2);border:1px solid var(--border);border-radius:18px;padding:28px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(91,106,249,0.3)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:16px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-8"/></svg></div>
+        <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:8px;letter-spacing:-0.02em;">Class analytics</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;">Average scores, subject-wise performance, students who need extra attention.</div>
+      </div>
+      <div style="background:var(--navy2);border:1px solid var(--border);border-radius:18px;padding:28px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(91,106,249,0.3)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:16px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.9 12.6a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+        <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:8px;letter-spacing:-0.02em;">Share via WhatsApp</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;">Send results via link. No app install needed for parents or students.</div>
+      </div>
+      <div style="background:var(--navy2);border:1px solid var(--border);border-radius:18px;padding:28px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(91,106,249,0.3)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:16px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:8px;letter-spacing:-0.02em;">School management</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;">Admin portal: manage teachers, students, classes, and credits with role-based access.</div>
+      </div>
+      <div style="background:var(--navy2);border:1px solid var(--border);border-radius:18px;padding:28px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(91,106,249,0.3)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:16px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
+        <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:8px;letter-spacing:-0.02em;">Question paper generation</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;">Generate practice papers from any topic or syllabus. Export as PDF instantly.</div>
+      </div>
     </div>
   </div>
 
-  <!-- ── Features ──────────────────────────────────────────────────────────── -->
-  <section id="features">
-    <div class="section-label">Features</div>
-    <h2 class="section-title">Everything your school needs</h2>
-    <p class="section-sub">
-      From scanning a single answer sheet to managing hundreds of students across classes.
-    </p>
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="feature-icon">📸</div>
-        <div class="feature-title">Scan from mobile</div>
-        <div class="feature-desc">
-          Teachers photograph answer sheets with their phone. The app stitches pages into a PDF and sends it to our AI for instant grading.
-        </div>
+  <!-- LAYOUT B: SPOTLIGHT -->
+  <div id="feat-spotlight" style="display:none;">
+    <div style="display:grid;grid-template-columns:1fr 1.8fr;gap:20px;align-items:start;">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <button class="spot-nav-btn active" onclick="spotlightSelect(0)">Scan from mobile</button>
+        <button class="spot-nav-btn" onclick="spotlightSelect(1)">AI grading</button>
+        <button class="spot-nav-btn" onclick="spotlightSelect(2)">Class analytics</button>
+        <button class="spot-nav-btn" onclick="spotlightSelect(3)">Share results</button>
+        <button class="spot-nav-btn" onclick="spotlightSelect(4)">School management</button>
+        <button class="spot-nav-btn" onclick="spotlightSelect(5)">Question paper generation</button>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">🧠</div>
-        <div class="feature-title">AI grading — question by question</div>
-        <div class="feature-desc">
-          Our AI reads the question paper and student answers, awards marks per question, and writes personalised feedback.
-        </div>
+      <div id="spotlight-detail" style="background:linear-gradient(145deg,#161b35,#1a2040);border:1px solid rgba(91,106,249,0.35);border-radius:20px;padding:44px;min-height:340px;">
+        <div id="spot-icon" style="width:52px;height:52px;border-radius:14px;background:rgba(91,106,249,0.18);border:1px solid rgba(91,106,249,0.35);display:flex;align-items:center;justify-content:center;margin-bottom:22px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"/></svg></div>
+        <div id="spot-title" style="font-size:26px;font-weight:700;color:var(--white);letter-spacing:-0.03em;margin-bottom:14px;">Scan from mobile</div>
+        <div id="spot-body" style="font-size:15px;color:var(--muted);line-height:1.7;max-width:520px;">Teachers photograph answer sheets with their phone. The app automatically stitches multiple pages into a single PDF and sends it for grading no scanner, no special equipment needed. Any camera angle works.</div>
+        <div id="spot-tag" style="margin-top:28px;display:inline-flex;align-items:center;gap:8px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);border-radius:99px;padding:6px 14px;font-size:12px;color:var(--indigoL);font-family:var(--mono);">Works on Android &amp; iOS</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">📊</div>
-        <div class="feature-title">Class analytics</div>
-        <div class="feature-desc">
-          See average scores, subject-wise performance, and identify students who need extra attention — across all tests.
-        </div>
+    </div>
+  </div>
+
+  <!-- LAYOUT C: EDITORIAL LIST -->
+  <div id="feat-list" style="display:none;">
+    <div style="display:flex;flex-direction:column;">
+      <div style="display:grid;grid-template-columns:56px 220px 1fr;gap:32px;align-items:start;padding:32px 0;border-top:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--indigo);font-family:var(--mono);letter-spacing:0.1em;padding-top:6px;">01</div>
+        <div><div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"/></svg></div><div style="font-size:17px;font-weight:600;color:var(--white);letter-spacing:-0.02em;">Scan from mobile</div></div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.7;padding-top:6px;">Teachers photograph answer sheets with their phone. The app stitches multiple pages into a single PDF no scanner needed. Works on any Android or iOS device.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">📲</div>
-        <div class="feature-title">Share results instantly</div>
-        <div class="feature-desc">
-          Send results via WhatsApp link. Students and parents see the full evaluation — marks, strengths, and what to improve.
+      <div style="display:grid;grid-template-columns:56px 220px 1fr;gap:32px;align-items:start;padding:32px 0;border-top:1px solid var(--border);background:linear-gradient(90deg,rgba(91,106,249,0.04) 0%,transparent 70%);">
+        <div style="font-size:11px;color:var(--indigo);font-family:var(--mono);letter-spacing:0.1em;padding-top:6px;">02</div>
+        <div>
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.18);border:1px solid rgba(91,106,249,0.4);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div>
+          <div style="font-size:17px;font-weight:600;color:var(--white);letter-spacing:-0.02em;">AI grading, question by question</div>
+          <div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);border-radius:99px;padding:4px 12px;"><div style="width:6px;height:6px;border-radius:50%;background:var(--green);"></div><span style="font-size:11px;color:var(--indigoL);font-family:var(--mono);">Core feature</span></div>
         </div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.7;padding-top:6px;">Our AI reads the question paper and each student's answers, awards marks per question, flags conceptual errors, and writes personalised feedback in about 28 seconds per sheet.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">🏫</div>
-        <div class="feature-title">School management</div>
-        <div class="feature-desc">
-          Admin portal for schools: manage teachers, students, classes, and credits. Full oversight with role-based access.
-        </div>
+      <div style="display:grid;grid-template-columns:56px 220px 1fr;gap:32px;align-items:start;padding:32px 0;border-top:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--indigo);font-family:var(--mono);letter-spacing:0.1em;padding-top:6px;">03</div>
+        <div><div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-8"/></svg></div><div style="font-size:17px;font-weight:600;color:var(--white);letter-spacing:-0.02em;">Class analytics</div></div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.7;padding-top:6px;">See average scores, subject-wise performance, and identify students who need extra attention across all tests. Pinpoint weak topics across your class at a glance.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">📄</div>
-        <div class="feature-title">Question paper generation</div>
-        <div class="feature-desc">
-          Generate practice papers from any topic or syllabus. Export as PDF for printing or sharing digitally.
+      <div style="display:grid;grid-template-columns:56px 220px 1fr;gap:32px;align-items:start;padding:32px 0;border-top:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--indigo);font-family:var(--mono);letter-spacing:0.1em;padding-top:6px;">04</div>
+        <div><div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.9 12.6a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div style="font-size:17px;font-weight:600;color:var(--white);letter-spacing:-0.02em;">Share results instantly</div></div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.7;padding-top:6px;">Send a WhatsApp link parents and students see full marks, per-question feedback, strengths, and what to improve. No app install required.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:56px 220px 1fr;gap:32px;align-items:start;padding:32px 0;border-top:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--indigo);font-family:var(--mono);letter-spacing:0.1em;padding-top:6px;">05</div>
+        <div><div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div style="font-size:17px;font-weight:600;color:var(--white);letter-spacing:-0.02em;">School management</div></div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.7;padding-top:6px;">Admin portal for schools: manage teachers, students, classes, and credits. Full oversight with role-based access and approval workflows.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:56px 220px 1fr;gap:32px;align-items:start;padding:32px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--indigo);font-family:var(--mono);letter-spacing:0.1em;padding-top:6px;">06</div>
+        <div><div style="width:40px;height:40px;border-radius:10px;background:rgba(91,106,249,0.1);border:1px solid rgba(91,106,249,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div><div style="font-size:17px;font-weight:600;color:var(--white);letter-spacing:-0.02em;">Question paper generation</div></div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.7;padding-top:6px;">Generate practice papers from any topic or syllabus in seconds. Export as PDF for printing or share digitally aligned to CBSE, ICSE, or state board requirements.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- HOW IT WORKS                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section id="how">
+  <div class="inner">
+    <div class="intro fade-up">
+      <div class="section-eyebrow">How it works</div>
+      <div class="section-heading">Three steps. Zero friction.</div>
+      <div class="section-sub" style="max-width:440px; margin:0 auto;">No training, no configuration, no IT setup. Scan and go in under a minute.</div>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card fade-up" style="position:relative;">
+        <div class="step-number">01</div>
+        <div class="step-title">Scan the question paper &amp; answer sheets</div>
+        <div class="step-body">Teachers use the mobile app to photograph the question paper, then snap each student's answer sheet. Multi-page sheets are automatically stitched into a single PDF. Any camera angle works the AI handles the rest.</div>
+        <div class="step-connector">→</div>
+      </div>
+      <div class="step-card fade-up" style="position:relative;">
+        <div class="step-number">02</div>
+        <div class="step-title">Claude grades question by question</div>
+        <div class="step-body">Our AI reads the question paper and each student's answers. It awards marks per question, flags errors, notes strengths, and writes personalised improvement feedback in about 28 seconds per sheet.</div>
+        <div class="step-connector">→</div>
+      </div>
+      <div class="step-card fade-up">
+        <div class="step-number">03</div>
+        <div class="step-title">Share results &amp; track progress</div>
+        <div class="step-body">Results are published instantly. Share via WhatsApp link students and parents see marks per question, feedback, and performance trends across all tests. Class-wide analytics surface in the teacher dashboard automatically.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- WHO IT'S FOR (ROLES)                                       -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section id="roles">
+  <div class="intro fade-up">
+    <div class="section-eyebrow">Who it's for</div>
+    <div class="section-heading">Built for everyone in the classroom.</div>
+  </div>
+
+  <div class="role-tabs" id="role-tabs">
+    <button class="role-tab active" onclick="switchRole(0)">For Schools</button>
+    <button class="role-tab" onclick="switchRole(1)">For Teachers</button>
+    <button class="role-tab" onclick="switchRole(2)">For Students</button>
+  </div>
+
+  <!-- Panel 0: Schools -->
+  <div class="role-panel" id="role-panel-0">
+    <div>
+      <div class="role-panel-tagline">Full oversight, zero admin load.</div>
+      <div class="role-bullets">
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Manage all teachers, students, and classes from one web portal</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Set credit limits and permissions per teacher or department</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">School-wide analytics track performance across subjects and terms</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Approve new teacher accounts with role-based access control</div></div>
+      </div>
+      <a href="mailto:support@kelzo.ai" class="btn-primary">Book a school demo →</a>
+    </div>
+    <div class="role-visual">
+      <div class="role-visual-label">[ screenshot ]<br/>school admin dashboard</div>
+    </div>
+  </div>
+
+  <!-- Panel 1: Teachers -->
+  <div class="role-panel" id="role-panel-1" style="display:none;">
+    <div>
+      <div class="role-panel-tagline">Grade 40 sheets in under 20 minutes.</div>
+      <div class="role-bullets">
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Scan question papers and answer sheets from your phone camera</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Multi-page answer sheets are automatically stitched into one PDF</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Receive AI grading with per-question marks and written feedback</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Share results with students and parents via WhatsApp in one tap</div></div>
+      </div>
+      <a href="https://app.kelzo.ai" class="btn-primary">Try free for 7 days →</a>
+    </div>
+    <div class="role-visual">
+      <div class="role-visual-label">[ screenshot ]<br/>teacher mobile app</div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Students -->
+  <div class="role-panel" id="role-panel-2" style="display:none;">
+    <div>
+      <div class="role-panel-tagline">Not just a score a roadmap.</div>
+      <div class="role-bullets">
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">See marks awarded per question with written explanation</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Understand exactly where marks were lost and why</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Track your performance across all tests and subjects over time</div></div>
+        <div class="role-bullet"><div class="role-bullet-dot"><div class="role-bullet-dot-inner"></div></div><div class="role-bullet-text">Access via app or shareable link no signup or install needed</div></div>
+      </div>
+      <a href="https://app.kelzo.ai" class="btn-primary">See a sample result →</a>
+    </div>
+    <div class="role-visual">
+      <div class="role-visual-label">[ screenshot ]<br/>student result view</div>
+    </div>
+  </div>
+</section>
+
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- TESTIMONIALS                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section id="testimonials">
+  <div class="intro fade-up">
+    <div class="section-eyebrow">Testimonials</div>
+    <div class="section-heading">Teachers love it. Principals trust it.</div>
+  </div>
+  <div class="testi-grid">
+    <div class="testi-card fade-up">
+      <div class="testi-quote">"I used to spend my entire Sunday grading Class 10 physics papers. Now I do 35 sheets in under 20 minutes. The feedback it writes is better than what I had time to write manually."</div>
+      <div class="testi-author">
+        <div class="testi-avatar">RS</div>
+        <div>
+          <div class="testi-name">Rohan Singh</div>
+          <div class="testi-role">Physics Teacher · Delhi Public School</div>
         </div>
       </div>
     </div>
-  </section>
-
-  <!-- ── Who is it for ─────────────────────────────────────────────────────── -->
-  <section id="who" style="background: var(--bg2); max-width: 100%; padding: 80px 24px;">
-    <div style="max-width: 1100px; margin: 0 auto;">
-      <div class="section-label">Who it's for</div>
-      <h2 class="section-title">Built for everyone in the classroom</h2>
-      <div class="personas">
-        <div class="persona-card">
-          <div style="font-size: 36px; margin-bottom: 12px;">🏫</div>
-          <div class="persona-title">Schools</div>
-          <div class="persona-subtitle">Web portal at app.kelzo.ai</div>
-          <ul class="persona-list">
-            <li>Manage all teachers and students</li>
-            <li>Assign credits and set permissions</li>
-            <li>View school-wide analytics</li>
-            <li>Approve new teacher accounts</li>
-          </ul>
-        </div>
-        <div class="persona-card">
-          <div style="font-size: 36px; margin-bottom: 12px;">👨‍🏫</div>
-          <div class="persona-title">Teachers</div>
-          <div class="persona-subtitle">Mobile app (Android & iOS)</div>
-          <ul class="persona-list">
-            <li>Scan question papers from phone camera</li>
-            <li>Photograph answer sheets one by one</li>
-            <li>Get AI grading with per-question feedback</li>
-            <li>Share results with students via WhatsApp</li>
-          </ul>
-        </div>
-        <div class="persona-card">
-          <div style="font-size: 36px; margin-bottom: 12px;">👨‍🎓</div>
-          <div class="persona-title">Students</div>
-          <div class="persona-subtitle">Mobile app or link</div>
-          <ul class="persona-list">
-            <li>View detailed evaluation of their sheet</li>
-            <li>See marks per question with feedback</li>
-            <li>Track performance over time</li>
-            <li>Access via app or shareable link</li>
-          </ul>
+    <div class="testi-card fade-up">
+      <div class="testi-quote">"As a principal, what sold me was the analytics. I can now see which topics the whole class is struggling with not just after exams, but after every test. That's never been possible before."</div>
+      <div class="testi-author">
+        <div class="testi-avatar">PJ</div>
+        <div>
+          <div class="testi-name">Priya Joshi</div>
+          <div class="testi-role">Principal · St. Mary's ICSE School, Pune</div>
         </div>
       </div>
     </div>
-  </section>
-
-  <!-- ── CTA ───────────────────────────────────────────────────────────────── -->
-  <section>
-    <div class="cta-band">
-      <h2>Ready to save hours every week?</h2>
-      <p>Sign up your school today — free to start, no credit card needed.</p>
-      <div class="cta-actions">
-        <!-- BRANDING: update href -->
-        <a href="https://app.kelzo.ai" class="btn-primary">Get started for free →</a>
-        <a href="mailto:support@kelzo.ai" class="btn-secondary">Talk to us</a>
+    <div class="testi-card fade-up">
+      <div class="testi-quote">"Parents used to ask me why their child lost marks. Now I just send them the Kelzo report it explains every question, every mark. Parents are happier, and I spend zero time on follow-up calls."</div>
+      <div class="testi-author">
+        <div class="testi-avatar">AM</div>
+        <div>
+          <div class="testi-name">Anjali Mehta</div>
+          <div class="testi-role">Mathematics Teacher · Kendriya Vidyalaya, Mumbai</div>
+        </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ── Footer ─────────────────────────────────────────────────────────────── -->
-  <footer>
-    <div class="footer-links">
-      <!-- BRANDING: update href -->
-      <a href="https://app.kelzo.ai">School Login</a>
-      <a href="mailto:support@kelzo.ai">support@kelzo.ai</a>
-      <a href="#features">Features</a>
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- FAQ                                                        -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section id="faq" style="display:none;">
+  <div class="inner">
+    <div class="intro fade-up">
+      <div class="section-eyebrow">FAQ</div>
+      <div class="section-heading">Common questions.</div>
     </div>
-    <!-- BRANDING: update company name and year -->
-    <div>© 2025 Kelzo AI. All rights reserved.</div>
-  </footer>
+    <div id="faq-list">
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Does it work for all subjects and boards?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <p>Yes. Kelzo works for any written answer sheet science, maths, social studies, languages, and more. It supports CBSE, ICSE, and all major state boards. The AI reads the question paper you upload and grades against it, so it adapts to any syllabus automatically.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          How accurate is the AI grading?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <p>In our testing with experienced teachers, Kelzo's marks align with teacher marks over 90% of the time on structured questions. For subjective or essay-type answers, we recommend teachers do a quick review of the AI's feedback. Teachers can always override marks directly in the app.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Is student data secure and private?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <p>Absolutely. We do not store or use student answer sheets for any purpose other than grading the specific test you submitted. Data is encrypted in transit and at rest. We comply with Indian data protection regulations and can sign a data processing agreement for enterprise schools.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Do students and parents need to install an app?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <p>No. Students and parents receive a WhatsApp link. Clicking it opens a mobile-friendly result page in their browser no app download, no account needed. Teachers and school admins use the app and web portal respectively.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          What happens if handwriting is hard to read?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <p>Claude is trained on a wide variety of handwriting styles and performs well with typical student handwriting. For particularly illegible answers, the system will indicate low-confidence grading so the teacher can review that question manually. Grading quality improves when sheets are photographed in good lighting on a flat surface.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          How do I get my school started?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <p>Sign up at app.kelzo.ai it takes under 2 minutes. You get 50 free sheets to test with your class. For the School plan or Enterprise, email us at support@kelzo.ai and we'll set up a 30-minute demo and onboarding call at your convenience.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- FINAL CTA                                                   -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section id="cta-footer">
+  <div class="cta-glow"></div>
+  <h2>Ready to reclaim<br/>your evenings?</h2>
+  <p>Join 340+ teachers who've stopped spending weekends grading. Free to start no credit card needed.</p>
+  <div class="cta-actions">
+    <a href="https://app.kelzo.ai" class="btn-primary">Start grading free →</a>
+    <a href="mailto:support@kelzo.ai" class="btn-ghost">Talk to us</a>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- FOOTER                                                      -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<footer id="footer">
+  <div class="footer-top">
+    <div>
+      <div class="footer-brand-name">
+        <div class="nav-logo-mark">K</div>
+        Kelzo
+      </div>
+      <div class="footer-brand-desc">AI-powered answer sheet grading for Indian schools. Built on AI. Free to start.</div>
+      <div class="powered-badge" style="margin-top:16px;">
+        <div class="badge-dot"></div>
+        Powered by AI · Kelzo AI © 2025
+      </div>
+    </div>
+    <div>
+      <div class="footer-col-title">Product</div>
+      <div class="footer-col-links">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="https://app.kelzo.ai">Sign up free</a>
+      </div>
+    </div>
+    <div>
+      <div class="footer-col-title">For Schools</div>
+      <div class="footer-col-links">
+        <a href="#roles">School admin</a>
+        <a href="#roles">Teachers</a>
+        <a href="#roles">Students</a>
+        <a href="mailto:support@kelzo.ai">Book a demo</a>
+      </div>
+    </div>
+    <div>
+      <div class="footer-col-title">Company</div>
+      <div class="footer-col-links">
+        <a href="mailto:support@kelzo.ai">Contact</a>
+        <a href="#">Privacy policy</a>
+        <a href="#">Terms of service</a>
+        <a href="https://app.kelzo.ai">School login</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2025 Kelzo AI. All rights reserved.</span>
+    <span><a href="mailto:support@kelzo.ai">support@kelzo.ai</a></span>
+  </div>
+</footer>
+
+<script>
+  /* ── FEATURE LAYOUT SWITCHER ── */
+  function switchFeatLayout(layout) {
+    ['bento','spotlight','list'].forEach(function(l) {
+      document.getElementById('feat-' + l).style.display = l === layout ? 'block' : 'none';
+      document.getElementById('btn-' + l).classList.toggle('active', l === layout);
+    });
+  }
+
+  /* ── SPOTLIGHT SELECT ── */
+  var spotData = [
+    { icon:'scan', title:'Scan from mobile', body:'Teachers photograph answer sheets with their phone. The app automatically stitches multiple pages into a single PDF and sends it for grading no scanner, no special equipment needed. Any camera angle works.', tag:'Works on Android & iOS' },
+    { icon:'ai', title:'AI grading question by question', body:'Our AI reads the question paper and each student\'s answers. It awards marks per question, flags conceptual errors, notes strengths, and writes personalised improvement feedback all in about 28 seconds per sheet.', tag:'28s per sheet · Live' },
+    { icon:'analytics', title:'Class analytics', body:'See average scores, subject-wise performance, and identify students who need extra attention across all tests and time periods. Pinpoint weak topics across your whole class at a glance.', tag:'Updated after every test' },
+    { icon:'share', title:'Share results instantly', body:'Send a WhatsApp link parents and students see full marks, per-question feedback, strengths, and what to improve. No app install required. Results ready in under a minute.', tag:'No app install needed' },
+    { icon:'school', title:'School management', body:'Admin portal for schools: manage teachers, students, classes, and credits. Full oversight with role-based access and approval workflows all from app.kelzo.ai.', tag:'Web portal · Role-based access' },
+    { icon:'paper', title:'Question paper generation', body:'Generate practice papers from any topic or syllabus in seconds. Export as PDF for printing or share digitally aligned to CBSE, ICSE, or state board requirements.', tag:'All boards supported' }
+  ];
+  function spotlightSelect(idx) {
+    var d = spotData[idx];
+    var svgMap = {
+      'scan': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"/></svg>',
+      'ai': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>',
+      'analytics': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-8"/></svg>',
+      'share': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.9 12.6a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+      'school': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+      'paper': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>'
+    };
+    document.getElementById('spot-icon').innerHTML = svgMap[d.icon] || '';
+    document.getElementById('spot-title').textContent = d.title;
+    document.getElementById('spot-body').textContent = d.body;
+    document.getElementById('spot-tag').textContent = d.tag;
+    document.querySelectorAll('.spot-nav-btn').forEach(function(b,i) { b.classList.toggle('active', i === idx); });
+  }
+
+  /* ── SCROLL FADE-IN ── */
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        // Stagger siblings
+        const siblings = [...e.target.parentElement.querySelectorAll('.fade-up')];
+        const idx = siblings.indexOf(e.target);
+        setTimeout(() => e.target.classList.add('visible'), idx * 80);
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
 </body>
 </html>
