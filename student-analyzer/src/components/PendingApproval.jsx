@@ -13,7 +13,7 @@ export default function PendingApproval({ school }) {
           <strong style={{ color: c.text }}>{school?.name}</strong> has been registered and is awaiting admin approval.
         </div>
         <div style={{ fontSize: 13, color: c.textDim, lineHeight: 1.6, marginBottom: 28 }}>
-          You'll be able to use EduGrade as soon as your school is approved. This typically takes less than 24 hours.
+          You'll be able to use Kelzo as soon as your school is approved. This typically takes less than 24 hours.
         </div>
         {authEnabled && (
           <button onClick={() => supabase.auth.signOut()}

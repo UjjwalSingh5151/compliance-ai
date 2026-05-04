@@ -91,7 +91,7 @@ if (process.env.SERVE_FRONTEND === "true") {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`EduGrade API running on http://localhost:${PORT}`);
+  console.log(`Kelzo API running on http://localhost:${PORT}`);
   console.log(`Frontend serving: ${process.env.SERVE_FRONTEND === "true" ? "ON" : "OFF (API only)"}`);
   console.log(`Allowed origins: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(", ") : "localhost only"}`);
 });

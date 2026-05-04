@@ -106,7 +106,7 @@ export default function HomeScreen({ navigation }: any) {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>📝 EduGrade</Text>
+          <Text style={styles.headerTitle}>📝 Kelzo</Text>
           {credits !== null && (
             <Text style={[styles.creditsText, {
               color: credits > 20 ? c.success : credits > 0 ? c.warning : c.danger,

@@ -167,7 +167,7 @@ function UnknownRoleScreen() {
       <Text style={styles.unknownEmoji}>🏫</Text>
       <Text style={styles.unknownTitle}>Account not linked</Text>
       <Text style={styles.unknownText}>
-        Your email isn't linked to any school on EduGrade yet.{"\n\n"}
+        Your email isn't linked to any school on Kelzo yet.{"\n\n"}
         Ask your school admin to add your email as a teacher or student,
         then sign in again.
       </Text>

@@ -5,7 +5,7 @@ import App from "./App";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ErrorBoundary title="EduGrade failed to start" description="Please refresh the page. If this keeps happening, contact support.">
+    <ErrorBoundary title="Kelzo failed to start" description="Please refresh the page. If this keeps happening, contact support.">
       <App />
     </ErrorBoundary>
   </StrictMode>

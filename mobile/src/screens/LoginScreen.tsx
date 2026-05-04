@@ -117,7 +117,7 @@ export default function LoginScreen() {
         {/* Logo */}
         <View style={styles.logoRow}>
           <Text style={styles.logoEmoji}>📝</Text>
-          <Text style={styles.logoText}>EduGrade</Text>
+          <Text style={styles.logoText}>Kelzo</Text>
         </View>
         <Text style={styles.subtitle}>AI Answer Sheet Grading</Text>
 

@@ -163,7 +163,7 @@ export default function App() {
         {!isMobile && (
           <div style={{ width: 200, background: "#0d1117", borderRight: `1px solid ${c.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
             <div style={{ padding: "20px 16px", borderBottom: `1px solid ${c.border}` }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>📝 EduGrade</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>📝 Kelzo</div>
               <div style={{ fontSize: 10, color: c.textDim, marginTop: 2 }}>Student Portal</div>
             </div>
             <nav style={{ flex: 1, padding: "10px 0" }}>
@@ -184,7 +184,7 @@ export default function App() {
         )}
         {isMobile && (
           <div style={{ background: "#0d1117", borderBottom: `1px solid ${c.border}`, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>📝 EduGrade</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>📝 Kelzo</div>
             <button onClick={() => supabase.auth.signOut()}
               style={{ fontSize: 11, color: c.textDim, background: "transparent", border: `1px solid ${c.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>
               Log out
@@ -259,7 +259,7 @@ export default function App() {
       {!isMobile && (
         <div style={{ width: 200, background: "#0d1117", borderRight: `1px solid ${c.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
           <div style={{ padding: "20px 16px", borderBottom: `1px solid ${c.border}` }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>📝 EduGrade</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>📝 Kelzo</div>
             <div style={{ fontSize: 10, color: c.textDim, marginTop: 2 }}>
               {schoolInfo?.school?.name || "AI Answer Sheet Analyzer"}
             </div>
@@ -305,7 +305,7 @@ export default function App() {
       {isMobile && (
         <div style={{ background: "#0d1117", borderBottom: `1px solid ${c.border}`, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>📝 EduGrade</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>📝 Kelzo</div>
             {schoolInfo?.school?.name && <div style={{ fontSize: 10, color: c.textDim, marginTop: 1 }}>{schoolInfo.school.name}</div>}
           </div>
           {authEnabled && user && (

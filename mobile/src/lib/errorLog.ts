@@ -15,7 +15,7 @@ const MAX = 30;
 export function logError(msg: string, ctx?: string) {
   logs.unshift({ ts: new Date().toISOString(), msg, ctx });
   if (logs.length > MAX) logs.pop();
-  console.error(`[EduGrade${ctx ? `:${ctx}` : ""}]`, msg);
+  console.error(`[Kelzo${ctx ? `:${ctx}` : ""}]`, msg);
 }
 
 export function getLogs(): LogEntry[] {

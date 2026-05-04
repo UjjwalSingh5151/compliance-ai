@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "EduGrade",
+    "name": "Kelzo",
     "slug": "edugrade-teacher",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,8 +18,8 @@
       "bundleIdentifier": "ai.kelzo.edugrade",
       "associatedDomains": ["applinks:app.kelzo.ai"],
       "infoPlist": {
-        "NSCameraUsageDescription": "EduGrade needs camera access to scan answer sheets and question papers.",
-        "NSPhotoLibraryUsageDescription": "EduGrade needs photo library access to select answer sheets from your gallery.",
+        "NSCameraUsageDescription": "Kelzo needs camera access to scan answer sheets and question papers.",
+        "NSPhotoLibraryUsageDescription": "Kelzo needs photo library access to select answer sheets from your gallery.",
         "NSMicrophoneUsageDescription": "Required by camera."
       }
     },
@@ -59,14 +59,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "EduGrade needs camera access to scan answer sheets and question papers.",
+          "cameraPermission": "Kelzo needs camera access to scan answer sheets and question papers.",
           "microphonePermission": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "EduGrade needs photo library access to select answer sheets."
+          "photosPermission": "Kelzo needs photo library access to select answer sheets."
         }
       ]
     ],

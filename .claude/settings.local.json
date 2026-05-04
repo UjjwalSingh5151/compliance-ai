@@ -9,7 +9,28 @@
       "Bash(unzip -o files.zip -d extracted_files)",
       "Bash(git add *)",
       "Bash(git commit -m 'fix: revert to sonnet model, show answer sheet in share view *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git commit -m 'feat: landing page, branding config, flow docs *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'docs: add CONTEXT.md — full project context for new Claude/Cursor sessions *)",
+      "Bash(npm install *)",
+      "Bash(git commit -m 'fix: use shell conditional for optional deploy hooks \\(secrets not allowed in if:\\) *)",
+      "Bash(git commit -m 'fix: remove web portal build from CI \\(Vercel handles it\\), keep backend tests only *)",
+      "Bash(npm run *)",
+      "Bash(rename CLAUDE.md context.md)",
+      "Bash(rename \"backend\\\\CLAUDE.md\" context.md)",
+      "Bash(rename \"mobile\\\\CLAUDE.md\" context.md)",
+      "Bash(rename \"student-analyzer\\\\CLAUDE.md\" context.md)",
+      "Bash(git restore *)",
+      "Bash(git show *)",
+      "Read(//tmp/**)",
+      "Bash(grep -v \"//.*claude\")",
+      "Bash(sed -i 's|// 5 min — Claude can be slow|// 5 min — AI grading can be slow|g' mobile/src/lib/api.ts)",
+      "Bash(sed -i 's|for Claude \\(1200px wide|for AI upload \\(1200px wide|g' mobile/src/lib/pdf.ts)",
+      "Bash(npm test *)",
+      "Bash(grep -o '\"content\":\"\\\\\\([^\"\\\\\\\\\\\\\\\\]\\\\|\\\\\\\\\\\\\\\\.\\\\\\)*\"')",
+      "Bash(npx tsc *)",
+      "Bash(npx expo *)"
     ]
   }
 }

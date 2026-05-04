@@ -35,7 +35,7 @@ export default function AuthScreen() {
       <div style={{ width: 360, background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>📝</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: c.text }}>EduGrade</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: c.text }}>Kelzo</div>
           <div style={{ fontSize: 12, color: c.textDim, marginTop: 3 }}>AI Answer Sheet Analyzer</div>
         </div>
 

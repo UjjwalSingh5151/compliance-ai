@@ -94,7 +94,7 @@ export default function ShareResultScreen({ route, navigation }: any) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.logo}>📝 EduGrade</Text>
+        <Text style={styles.logo}>📝 Kelzo</Text>
         <Text style={styles.shareLabel}>Result Card</Text>
       </View>
 

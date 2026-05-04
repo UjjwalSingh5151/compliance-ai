@@ -20,7 +20,7 @@
 
 export const BRAND = {
   // ── Identity ──────────────────────────────────────────────────────────────
-  productName:    "EduGrade",
+  productName:    "Kelzo",
   productTagline: "AI-powered answer sheet grading for schools",
   logoEmoji:      "📝",                        // fallback when no image set
   logoUrl:        null,                        // e.g. "https://cdn.kelzo.ai/logo.svg"

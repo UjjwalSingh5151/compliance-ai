@@ -6,7 +6,7 @@
  */
 
 export const BRAND = {
-  productName:    "EduGrade",
+  productName:    "Kelzo",
   productTagline: "AI-powered answer sheet grading",
   logoEmoji:      "📝",
   supportEmail:   "support@kelzo.ai",

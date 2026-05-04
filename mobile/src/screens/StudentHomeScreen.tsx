@@ -136,7 +136,7 @@ export default function StudentHomeScreen({ navigation }: any) {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>📝 EduGrade</Text>
+          <Text style={styles.headerTitle}>📝 Kelzo</Text>
           {student && (
             <Text style={styles.headerSub}>
               👤 {student.name}{student.roll_no ? `  ·  Roll ${student.roll_no}` : ""}
