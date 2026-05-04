@@ -16,7 +16,7 @@ export default function StudentHomeScreen({ navigation }: any) {
   const [totalResults, setTotalResults] = useState(0);
   const [avgPct, setAvgPct]           = useState(0);
   const [fingerprint, setFingerprint] = useState<LearningFingerprint | null>(null);
-  const [fpExpanded, setFpExpanded]   = useState(false);
+  const [allResults, setAllResults]   = useState<any[]>([]);
 
   const load = async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -30,6 +30,7 @@ export default function StudentHomeScreen({ navigation }: any) {
 
       const results: any[] = res.results || [];
       setTotalResults(results.length);
+      setAllResults(results);
 
       // Average score
       if (results.length > 0) {
@@ -148,13 +149,9 @@ export default function StudentHomeScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* Learning fingerprint card — shown once student has results */}
-      {fingerprint && totalResults >= 2 && (
-        <LearningFingerprintCard
-          fp={fingerprint}
-          expanded={fpExpanded}
-          onToggle={() => setFpExpanded((v) => !v)}
-        />
+      {/* Analytics panel — shown whenever there are results */}
+      {totalResults > 0 && (
+        <PerformancePanel results={allResults} fingerprint={fingerprint} />
       )}
 
       {loading ? (
@@ -188,107 +185,251 @@ export default function StudentHomeScreen({ navigation }: any) {
   );
 }
 
-// ─── Learning fingerprint card ─────────────────────────────────────────────
-function LearningFingerprintCard({ fp, expanded, onToggle }: {
-  fp: LearningFingerprint; expanded: boolean; onToggle: () => void;
+// ─── Rich performance analytics panel ─────────────────────────────────────────
+function PerformancePanel({ results, fingerprint }: {
+  results: any[];
+  fingerprint: LearningFingerprint | null;
 }) {
-  const cogColors = { recall: c.success, application: c.warning, analysis: c.purple };
+  const [showAll, setShowAll] = useState(false);
+
+  // ── Compute analytics from results ──────────────────────────────────────────
+  // Subject breakdown
+  const subjectMap: Record<string, { obtained: number; total: number; count: number }> = {};
+  for (const r of results) {
+    const subj = r.analyzer_tests?.subject?.trim() || "General";
+    if (!subjectMap[subj]) subjectMap[subj] = { obtained: 0, total: 0, count: 0 };
+    subjectMap[subj].obtained += r.marks_obtained || 0;
+    subjectMap[subj].total    += r.total_marks    || 0;
+    subjectMap[subj].count    += 1;
+  }
+  const subjects = Object.entries(subjectMap).map(([subj, d]) => ({
+    subject: subj,
+    avg: d.total > 0 ? Math.round((d.obtained / d.total) * 100) : 0,
+    count: d.count,
+  })).sort((a, b) => b.avg - a.avg);
+
+  // All questions across all results
+  const allQuestions: any[] = results.flatMap((r) => (r.analysis?.questions || []).map((q: any) => ({
+    ...q,
+    subject: r.analyzer_tests?.subject?.trim() || "General",
+  })));
+
+  // Concept-level breakdown
+  const conceptMap: Record<string, { correct: number; wrong: number; subject: string }> = {};
+  for (const q of allQuestions) {
+    if (!q.concept_tag) continue;
+    if (!conceptMap[q.concept_tag]) conceptMap[q.concept_tag] = { correct: 0, wrong: 0, subject: q.subject };
+    const isCorrect = q.is_correct || (q.marks_awarded >= q.marks_available);
+    if (isCorrect) conceptMap[q.concept_tag].correct++;
+    else           conceptMap[q.concept_tag].wrong++;
+  }
+  const weakConcepts  = Object.entries(conceptMap)
+    .filter(([, v]) => v.wrong > 0)
+    .sort((a, b) => b[1].wrong - a[1].wrong)
+    .slice(0, 6);
+  const strongConcepts = Object.entries(conceptMap)
+    .filter(([, v]) => v.wrong === 0 && v.correct > 0)
+    .sort((a, b) => b[1].correct - a[1].correct)
+    .slice(0, 4);
+
+  // Cognitive level accuracy
+  const cogMap: Record<string, { awarded: number; available: number }> = {
+    recall: { awarded: 0, available: 0 },
+    application: { awarded: 0, available: 0 },
+    analysis: { awarded: 0, available: 0 },
+  };
+  for (const q of allQuestions) {
+    const level = q.cognitive_level;
+    if (!level || !cogMap[level]) continue;
+    cogMap[level].awarded   += q.marks_awarded   || 0;
+    cogMap[level].available += q.marks_available || 0;
+  }
+  const cogStats = (["recall", "application", "analysis"] as const).map((level) => {
+    const d = cogMap[level];
+    const acc = d.available > 0 ? Math.round((d.awarded / d.available) * 100) : null;
+    return { level, acc, available: d.available };
+  }).filter((s) => s.available > 0);
+
+  // Overall Q accuracy
+  const totalQ   = allQuestions.length;
+  const correctQ = allQuestions.filter((q) => q.is_correct || q.marks_awarded >= q.marks_available).length;
+  const partialQ = allQuestions.filter((q) => !q.is_correct && q.marks_awarded > 0 && q.marks_awarded < q.marks_available).length;
+  const wrongQ   = totalQ - correctQ - partialQ;
+
+  const cogColor = (level: string) =>
+    level === "recall" ? c.success : level === "application" ? c.warning : c.purple;
+  const cogIcon  = (level: string) =>
+    level === "recall" ? "💭" : level === "application" ? "⚙️" : "🔬";
+
+  const SHOW_LIMIT = 2; // concepts to show before "show more"
+
   return (
-    <TouchableOpacity
-      style={fpStyles.card}
-      onPress={onToggle}
-      activeOpacity={0.85}
-    >
-      {/* Header row */}
-      <View style={fpStyles.headerRow}>
-        <View style={fpStyles.headerLeft}>
-          <Text style={fpStyles.title}>🧠 My Learning Profile</Text>
-          <Text style={fpStyles.sub}>
-            {fp.totalResultsAnalyzed} test{fp.totalResultsAnalyzed !== 1 ? "s" : ""} analyzed
-          </Text>
-        </View>
-        <Text style={fpStyles.chevron}>{expanded ? "▲" : "▼"}</Text>
+    <View style={fpStyles.panel}>
+      <Text style={fpStyles.panelTitle}>📊 My Performance Breakdown</Text>
+
+      {/* ── Subject bars ── */}
+      <View style={fpStyles.section}>
+        <Text style={fpStyles.sectionLabel}>SUBJECTS</Text>
+        {subjects.map(({ subject, avg, count }) => {
+          const col = avg >= 75 ? c.success : avg >= 40 ? c.warning : c.danger;
+          return (
+            <View key={subject} style={fpStyles.barRow}>
+              <Text style={fpStyles.barLabel} numberOfLines={1}>{subject}</Text>
+              <View style={fpStyles.barTrack}>
+                <View style={[fpStyles.barFill, { width: `${avg}%` as any, backgroundColor: col }]} />
+              </View>
+              <Text style={[fpStyles.barPct, { color: col }]}>{avg}%</Text>
+              <Text style={fpStyles.barCount}>{count}t</Text>
+            </View>
+          );
+        })}
       </View>
 
-      {/* Always visible: subject trends */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
-        <View style={fpStyles.trendRow}>
-          {fp.subjectTrends.map((t) => {
-            const trendColor = t.trend === "improving" ? c.success : t.trend === "declining" ? c.danger : c.warning;
-            const trendIcon = t.trend === "improving" ? "↑" : t.trend === "declining" ? "↓" : "→";
-            return (
-              <View key={t.subject} style={fpStyles.trendChip}>
-                <Text style={fpStyles.trendSubject} numberOfLines={1}>{t.subject}</Text>
-                <Text style={[fpStyles.trendIcon, { color: trendColor }]}>{trendIcon} {t.avg}%</Text>
-              </View>
-            );
-          })}
+      {/* ── Q accuracy summary ── */}
+      {totalQ > 0 && (
+        <View style={fpStyles.section}>
+          <Text style={fpStyles.sectionLabel}>QUESTION ACCURACY ({totalQ} questions total)</Text>
+          <View style={fpStyles.qBar}>
+            {correctQ > 0 && <View style={[fpStyles.qBarSeg, { flex: correctQ, backgroundColor: c.success }]} />}
+            {partialQ > 0 && <View style={[fpStyles.qBarSeg, { flex: partialQ, backgroundColor: c.warning }]} />}
+            {wrongQ   > 0 && <View style={[fpStyles.qBarSeg, { flex: wrongQ,   backgroundColor: c.danger  }]} />}
+          </View>
+          <View style={fpStyles.qLegend}>
+            <View style={fpStyles.qLegendItem}>
+              <View style={[fpStyles.qDot, { backgroundColor: c.success }]} />
+              <Text style={fpStyles.qLegendText}>Correct {correctQ}</Text>
+            </View>
+            <View style={fpStyles.qLegendItem}>
+              <View style={[fpStyles.qDot, { backgroundColor: c.warning }]} />
+              <Text style={fpStyles.qLegendText}>Partial {partialQ}</Text>
+            </View>
+            <View style={fpStyles.qLegendItem}>
+              <View style={[fpStyles.qDot, { backgroundColor: c.danger }]} />
+              <Text style={fpStyles.qLegendText}>Wrong {wrongQ}</Text>
+            </View>
+          </View>
         </View>
-      </ScrollView>
-
-      {expanded && (
-        <>
-          {/* Cognitive level breakdown */}
-          {(fp.cogBreakdown.recall > 0 || fp.cogBreakdown.application > 0 || fp.cogBreakdown.analysis > 0) && (
-            <View style={fpStyles.cogSection}>
-              <Text style={fpStyles.subTitle}>WHERE YOU LOSE MARKS</Text>
-              <View style={fpStyles.cogRow}>
-                {(["recall", "application", "analysis"] as const).map((level) => {
-                  const pct = fp.cogBreakdown[level];
-                  const col = cogColors[level];
-                  return (
-                    <View key={level} style={fpStyles.cogItem}>
-                      <Text style={[fpStyles.cogPct, { color: col }]}>{pct}%</Text>
-                      <Text style={fpStyles.cogLabel}>{level}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Recurring weak concepts */}
-          {fp.weakConcepts.length > 0 && (
-            <View style={fpStyles.conceptSection}>
-              <Text style={fpStyles.subTitle}>RECURRING WEAK CONCEPTS</Text>
-              <View style={fpStyles.conceptRow}>
-                {fp.weakConcepts.map((wc) => (
-                  <View key={wc.tag} style={fpStyles.conceptChip}>
-                    <Text style={fpStyles.conceptText}>{wc.tag}</Text>
-                    <Text style={fpStyles.conceptCount}>{wc.count}×</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-        </>
       )}
-    </TouchableOpacity>
+
+      {/* ── Cognitive level accuracy ── */}
+      {cogStats.length > 0 && (
+        <View style={fpStyles.section}>
+          <Text style={fpStyles.sectionLabel}>ACCURACY BY QUESTION TYPE</Text>
+          <View style={fpStyles.cogRow}>
+            {cogStats.map(({ level, acc }) => {
+              const col = cogColor(level);
+              return (
+                <View key={level} style={[fpStyles.cogBox, { borderColor: `${col}40`, backgroundColor: `${col}10` }]}>
+                  <Text style={fpStyles.cogIcon}>{cogIcon(level)}</Text>
+                  <Text style={[fpStyles.cogAcc, { color: col }]}>{acc}%</Text>
+                  <Text style={fpStyles.cogLabel}>{level}</Text>
+                  <Text style={fpStyles.cogHint}>
+                    {acc! >= 80 ? "Strong ✓" : acc! >= 50 ? "Moderate" : "Needs work"}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* ── Weak concepts ── */}
+      {weakConcepts.length > 0 && (
+        <View style={fpStyles.section}>
+          <Text style={fpStyles.sectionLabel}>🔴 TOPICS TO FOCUS ON</Text>
+          {(showAll ? weakConcepts : weakConcepts.slice(0, SHOW_LIMIT)).map(([tag, v]) => (
+            <View key={tag} style={fpStyles.conceptRow}>
+              <View style={fpStyles.conceptLeft}>
+                <Text style={fpStyles.conceptTag}>{tag}</Text>
+                <Text style={fpStyles.conceptSubj}>{v.subject}</Text>
+              </View>
+              <View style={fpStyles.conceptRight}>
+                <Text style={fpStyles.conceptWrong}>{v.wrong} wrong</Text>
+                {v.correct > 0 && <Text style={fpStyles.conceptRight2}>{v.correct} correct</Text>}
+              </View>
+            </View>
+          ))}
+          {weakConcepts.length > SHOW_LIMIT && (
+            <TouchableOpacity onPress={() => setShowAll((v) => !v)} style={fpStyles.showMore}>
+              <Text style={fpStyles.showMoreText}>
+                {showAll ? "Show less ▲" : `+${weakConcepts.length - SHOW_LIMIT} more topics ▼`}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* ── Strong concepts ── */}
+      {strongConcepts.length > 0 && (
+        <View style={fpStyles.section}>
+          <Text style={fpStyles.sectionLabel}>✅ STRONG TOPICS</Text>
+          <View style={fpStyles.chipRow}>
+            {strongConcepts.map(([tag]) => (
+              <View key={tag} style={fpStyles.strongChip}>
+                <Text style={fpStyles.strongChipText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* ── Fingerprint insights (if available) ── */}
+      {fingerprint?.weakConcepts && fingerprint.weakConcepts.length > 0 && weakConcepts.length === 0 && (
+        <View style={fpStyles.section}>
+          <Text style={fpStyles.sectionLabel}>🔴 RECURRING WEAK CONCEPTS</Text>
+          <View style={fpStyles.chipRow}>
+            {fingerprint.weakConcepts.map((wc) => (
+              <View key={wc.tag} style={[fpStyles.strongChip, { backgroundColor: `${c.danger}12`, borderColor: `${c.danger}30` }]}>
+                <Text style={[fpStyles.strongChipText, { color: c.danger }]}>{wc.tag} ({wc.count}×)</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
 const fpStyles = StyleSheet.create({
-  card:          { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: `${c.accent}30`, margin: 16, marginBottom: 0, padding: 14 },
-  headerRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerLeft:    { flex: 1 },
-  title:         { fontSize: 14, fontWeight: "700", color: c.text },
-  sub:           { fontSize: 11, color: c.textDim, marginTop: 2 },
-  chevron:       { fontSize: 10, color: c.textDim, marginLeft: 8 },
-  trendRow:      { flexDirection: "row", gap: 8, paddingBottom: 2 },
-  trendChip:     { backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.border, paddingHorizontal: 10, paddingVertical: 6, alignItems: "center", minWidth: 80 },
-  trendSubject:  { fontSize: 11, fontWeight: "600", color: c.text, maxWidth: 90 },
-  trendIcon:     { fontSize: 12, fontWeight: "700", marginTop: 2 },
-  cogSection:    { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border },
-  subTitle:      { fontSize: 10, fontWeight: "700", color: c.textDim, letterSpacing: 0.8, marginBottom: 10 },
-  cogRow:        { flexDirection: "row", gap: 10 },
-  cogItem:       { flex: 1, alignItems: "center", backgroundColor: c.bg, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: c.border },
-  cogPct:        { fontSize: 18, fontWeight: "800" },
-  cogLabel:      { fontSize: 10, color: c.textDim, marginTop: 2 },
-  conceptSection:{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border },
-  conceptRow:    { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  conceptChip:   { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${c.danger}15`, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: `${c.danger}30` },
-  conceptText:   { fontSize: 12, color: c.text, fontWeight: "500" },
-  conceptCount:  { fontSize: 11, fontWeight: "700", color: c.danger },
+  panel:         { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, margin: 16, marginBottom: 0, padding: 14 },
+  panelTitle:    { fontSize: 14, fontWeight: "700", color: c.text, marginBottom: 14 },
+  section:       { marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: c.border },
+  sectionLabel:  { fontSize: 10, fontWeight: "700", color: c.textDim, letterSpacing: 0.8, marginBottom: 10 },
+  // Subject bars
+  barRow:        { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  barLabel:      { fontSize: 12, color: c.text, fontWeight: "600", width: 72 },
+  barTrack:      { flex: 1, height: 8, backgroundColor: c.bg, borderRadius: 4, overflow: "hidden" },
+  barFill:       { height: 8, borderRadius: 4 },
+  barPct:        { fontSize: 12, fontWeight: "700", width: 36, textAlign: "right" },
+  barCount:      { fontSize: 10, color: c.textDim, width: 18 },
+  // Q accuracy bar
+  qBar:          { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", gap: 1, marginBottom: 8 },
+  qBarSeg:       { borderRadius: 2 },
+  qLegend:       { flexDirection: "row", gap: 14 },
+  qLegendItem:   { flexDirection: "row", alignItems: "center", gap: 5 },
+  qDot:          { width: 8, height: 8, borderRadius: 4 },
+  qLegendText:   { fontSize: 11, color: c.textMid },
+  // Cognitive
+  cogRow:        { flexDirection: "row", gap: 8 },
+  cogBox:        { flex: 1, alignItems: "center", borderRadius: 10, borderWidth: 1, paddingVertical: 10, gap: 2 },
+  cogIcon:       { fontSize: 18 },
+  cogAcc:        { fontSize: 20, fontWeight: "800" },
+  cogLabel:      { fontSize: 10, color: c.textDim, textTransform: "capitalize" },
+  cogHint:       { fontSize: 9, color: c.textDim, marginTop: 2 },
+  // Weak concept rows
+  conceptRow:    { flexDirection: "row", alignItems: "center", backgroundColor: c.bg, borderRadius: 8, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: `${c.danger}20` },
+  conceptLeft:   { flex: 1 },
+  conceptTag:    { fontSize: 13, fontWeight: "600", color: c.text },
+  conceptSubj:   { fontSize: 11, color: c.textDim, marginTop: 2 },
+  conceptRight:  { alignItems: "flex-end" },
+  conceptWrong:  { fontSize: 12, fontWeight: "700", color: c.danger },
+  conceptRight2: { fontSize: 11, color: c.success, marginTop: 1 },
+  showMore:      { alignItems: "center", marginTop: 4 },
+  showMoreText:  { fontSize: 12, color: c.accent, fontWeight: "600" },
+  // Strong concepts chips
+  chipRow:       { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  strongChip:    { backgroundColor: `${c.success}12`, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: `${c.success}30` },
+  strongChipText:{ fontSize: 12, color: c.success, fontWeight: "600" },
 });
 
 function ActionBtn({ icon, label, onPress, color }: {
