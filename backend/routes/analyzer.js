@@ -372,6 +372,54 @@ router.get("/students", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PATCH /students/:id — teacher edits student name/roll/class/section
+// After update: checks if another student record with same class+roll_no exists (duplicate)
+// If duplicate found: all results are re-assigned to the existing canonical record and the
+// now-duplicate new record is removed. Returns { student, mergedInto } where mergedInto is
+// the canonical student if a merge happened.
+router.patch("/students/:id", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.status(503).json({ error: "DB not available" });
+    const { id } = req.params;
+    const allowed = ["name", "roll_no", "class", "section"];
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
+    if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields" });
+
+    // Get current record to know school_id
+    const { data: current } = await supabaseAdmin.from("analyzer_students").select("id, school_id, roll_no, class").eq("id", id).single();
+    if (!current) return res.status(404).json({ error: "Student not found" });
+
+    // Apply the update
+    const { data: updated, error } = await supabaseAdmin
+      .from("analyzer_students").update(updates).eq("id", id).select().single();
+    if (error) throw error;
+
+    // Check for a duplicate: same school_id + roll_no + class (after update)
+    const finalRoll  = updates.roll_no ?? current.roll_no;
+    const finalClass = updates.class   ?? current.class;
+    if (finalRoll && finalClass && current.school_id) {
+      const { data: dup } = await supabaseAdmin
+        .from("analyzer_students")
+        .select("id, name, roll_no, class, section")
+        .eq("school_id", current.school_id)
+        .eq("roll_no", finalRoll)
+        .eq("class", finalClass)
+        .neq("id", id)          // exclude the record we just edited
+        .maybeSingle();
+
+      if (dup) {
+        // Re-assign all results from the edited record to the existing canonical record
+        await supabaseAdmin.from("analyzer_results").update({ student_id: dup.id }).eq("student_id", id);
+        // Delete the now-duplicate record
+        await supabaseAdmin.from("analyzer_students").delete().eq("id", id);
+        return res.json({ student: dup, mergedInto: dup });
+      }
+    }
+
+    res.json({ student: updated, mergedInto: null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /students/:id
 router.get("/students/:id", async (req, res) => {
   try {

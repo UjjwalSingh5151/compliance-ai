@@ -13,6 +13,45 @@ function ScoreBadge({ pct }) {
   );
 }
 
+// ── Inline answer-sheet panel ─────────────────────────────────────────────────
+function SheetPanel({ url }) {
+  const [open, setOpen] = useState(false);
+  const isPdf = /\.pdf(\?|$)/i.test(url) || url.includes("application%2Fpdf");
+  const viewerUrl = isPdf
+    ? `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`
+    : url;
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: `${c.accent}12`, border: `1px solid ${c.accent}30`,
+          borderRadius: 10, padding: "12px 16px", cursor: "pointer", color: c.accent,
+          fontSize: 14, fontWeight: 600,
+        }}
+      >
+        <span>📄 {open ? "Hide" : "View"} Answer Sheet</span>
+        <span style={{ fontSize: 12, opacity: 0.7 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 8, borderRadius: 10, overflow: "hidden", border: `1px solid ${c.border}` }}>
+          {isPdf ? (
+            <iframe
+              src={viewerUrl}
+              title="Answer Sheet"
+              style={{ width: "100%", height: 520, border: "none", background: "#fff" }}
+            />
+          ) : (
+            <img src={url} alt="Answer sheet" style={{ width: "100%", display: "block" }} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ShareView({ token }) {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -124,18 +163,9 @@ export default function ShareView({ token }) {
           </div>
         )}
 
-        {/* Original answer sheet */}
+        {/* Original answer sheet — inline viewer */}
         {original_sheet_url && (
-          <div style={{ ...card, marginTop: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: c.textMid, marginBottom: 10, letterSpacing: 0.5 }}>YOUR ANSWER SHEET</div>
-            {original_sheet_url.toLowerCase().endsWith(".pdf") ? (
-              <a href={original_sheet_url} target="_blank" rel="noopener noreferrer" style={{ color: c.accent, fontSize: 13 }}>
-                Open PDF ↗
-              </a>
-            ) : (
-              <img src={original_sheet_url} alt="Answer sheet" style={{ maxWidth: "100%", borderRadius: 8, border: `1px solid ${c.border}` }} />
-            )}
-          </div>
+          <SheetPanel url={original_sheet_url} />
         )}
 
         {/* Student CTA */}

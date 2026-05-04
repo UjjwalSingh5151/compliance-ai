@@ -167,7 +167,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
         />
       ) : tab === "notes" ? (
         /* ── NOTES tab ──────────────────────────────────────────────────── */
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
           {notesLoading ? (
             <View style={styles.generatingBox}>
               <ActivityIndicator color={c.purple} />
@@ -204,7 +204,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
         </ScrollView>
       ) : tab === "practice" ? (
         /* ── PRACTICE tab ───────────────────────────────────────────────── */
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
           {practiceLoading ? (
             <View style={styles.generatingBox}>
               <ActivityIndicator color={c.success} />
@@ -277,7 +277,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
         </ScrollView>
       ) : (
         /* ── ANALYSIS tab ───────────────────────────────────────────────── */
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
           {/* Score card */}
           <View style={styles.scoreCard}>
             <View style={[styles.ring, { borderColor: pct >= 75 ? c.success : pct >= 40 ? c.warning : c.danger }]}>
@@ -305,20 +305,50 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
               <Text style={styles.feedbackText}>{analysis.overall_feedback}</Text>
             </Section>
           )}
-          {(analysis.strengths || []).length > 0 && (
-            <Section title="✓ Strengths">
-              {analysis.strengths.map((s: string, i: number) => (
-                <Bullet key={i} text={s} color={c.success} />
-              ))}
-            </Section>
-          )}
-          {(analysis.improvement_areas || []).length > 0 && (
-            <Section title="→ Areas to Improve">
-              {analysis.improvement_areas.map((a: string, i: number) => (
-                <Bullet key={i} text={a} color={c.warning} />
-              ))}
-            </Section>
-          )}
+          {(analysis.strengths || []).length > 0 && (() => {
+            const strongTopics = [...new Set(
+              questions2.filter((q: any) => q.is_correct || q.marks_awarded >= q.marks_available * 0.8)
+                .map((q: any) => q.concept_tag).filter(Boolean)
+            )];
+            return (
+              <Section title="✓ Strengths">
+                {analysis.strengths.map((s: string, i: number) => (
+                  <Bullet key={i} text={s} color={c.success} />
+                ))}
+                {strongTopics.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                    {strongTopics.map((t: string) => (
+                      <View key={t} style={[styles.topicTag, { backgroundColor: `${c.success}12`, borderColor: `${c.success}30` }]}>
+                        <Text style={[styles.topicTagText, { color: c.success }]}>🏷 {t}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </Section>
+            );
+          })()}
+          {(analysis.improvement_areas || []).length > 0 && (() => {
+            const weakTopics = [...new Set(
+              questions2.filter((q: any) => !q.is_correct && q.marks_awarded < q.marks_available * 0.8)
+                .map((q: any) => q.concept_tag).filter(Boolean)
+            )];
+            return (
+              <Section title="→ Areas to Improve">
+                {analysis.improvement_areas.map((a: string, i: number) => (
+                  <Bullet key={i} text={a} color={c.warning} />
+                ))}
+                {weakTopics.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                    {weakTopics.map((t: string) => (
+                      <View key={t} style={[styles.topicTag, { backgroundColor: `${c.warning}12`, borderColor: `${c.warning}30` }]}>
+                        <Text style={[styles.topicTagText, { color: c.warning }]}>🏷 {t}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </Section>
+            );
+          })()}
           {questions2.length > 0 && (
             <Section title="Question Breakdown">
               {questions2.map((q: any) => <QuestionCard key={q.no} q={q} />)}
@@ -397,6 +427,23 @@ function QuestionCard({ q }: { q: any }) {
           {q.expected_answer && <QField label="EXPECTED ANSWER" value={q.expected_answer} color={c.success} />}
           {q.reasoning     && <QField label="REASONING"       value={q.reasoning} />}
           {q.feedback      && <QField label="FEEDBACK"        value={q.feedback} color={c.accent} />}
+          {(q.concept_tag || q.cognitive_level) && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+              {q.concept_tag && (
+                <View style={styles.topicTag}>
+                  <Text style={styles.topicTagText}>🏷 {q.concept_tag}</Text>
+                </View>
+              )}
+              {q.cognitive_level && (
+                <View style={[styles.topicTag, { backgroundColor: `${c.purple}15`, borderColor: `${c.purple}40` }]}>
+                  <Text style={[styles.topicTagText, { color: c.purple }]}>
+                    {q.cognitive_level === "recall" ? "💭 " : q.cognitive_level === "application" ? "⚙️ " : "🔬 "}
+                    {q.cognitive_level}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       )}
     </TouchableOpacity>
@@ -575,6 +622,9 @@ const styles = StyleSheet.create({
   quizHeader:         { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   quizTitle:          { fontSize: 16, fontWeight: "700", color: c.text },
   quizSub:            { fontSize: 13, color: c.textMid },
+  // Topic tags
+  topicTag:           { backgroundColor: `${c.accent}12`, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: `${c.accent}30` },
+  topicTagText:       { fontSize: 11, color: c.accent, fontWeight: "600" },
   // Practice results
   resultBanner:       { borderRadius: 14, borderWidth: 1.5, padding: 20, alignItems: "center", gap: 4 },
   resultScore:        { fontSize: 32, fontWeight: "800" },

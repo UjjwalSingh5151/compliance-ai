@@ -288,6 +288,11 @@ export const api = {
     request<{ ok: boolean; student: Student | null }>(`/api/analyzer/results/${id}/assign`, {
       method: "PATCH", body: JSON.stringify({ studentId }),
     }),
+  // Edit student details (name, roll_no, class, section); backend auto-merges if duplicate found
+  updateStudent: (studentId: string, updates: { name?: string; roll_no?: string; class?: string; section?: string }) =>
+    request<{ student: Student; mergedInto: Student | null }>(`/api/analyzer/students/${studentId}`, {
+      method: "PATCH", body: JSON.stringify(updates),
+    }),
 
   // Analytics (shape varies by role — keeping loose intentionally)
   getMyAnalytics: () => request<Record<string, unknown>>("/api/analytics/me"),

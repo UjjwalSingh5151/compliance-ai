@@ -238,6 +238,25 @@ function QuestionCard({ q, comment, onCommentChange, onOverride }: {
             </View>
           ) : null}
 
+          {/* Topic & cognitive level tags */}
+          {(q.concept_tag || q.cognitive_level) && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {q.concept_tag && (
+                <View style={styles.topicTag}>
+                  <Text style={styles.topicTagText}>🏷 {q.concept_tag}</Text>
+                </View>
+              )}
+              {q.cognitive_level && (
+                <View style={[styles.topicTag, { backgroundColor: `${c.purple}15`, borderColor: `${c.purple}40` }]}>
+                  <Text style={[styles.topicTagText, { color: c.purple }]}>
+                    {q.cognitive_level === "recall" ? "💭" : q.cognitive_level === "application" ? "⚙️" : "🔬"}{" "}
+                    {q.cognitive_level}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Teacher comment */}
           <View style={styles.qSection}>
             <Text style={[styles.qSectionLabel, { color: c.purple }]}>TEACHER'S NOTE</Text>
@@ -310,6 +329,13 @@ export default function ResultDetailScreen({ route, navigation }: any) {
   const [saving, setSaving]     = useState(false);
   const [tab, setTab]           = useState<"analysis" | "sheet">("analysis");
   const [showAssign, setShowAssign] = useState(false);
+  // Student edit
+  const [editingStudent, setEditingStudent] = useState(false);
+  const [editName, setEditName]   = useState("");
+  const [editRoll, setEditRoll]   = useState("");
+  const [editClass, setEditClass] = useState("");
+  const [editSection, setEditSection] = useState("");
+  const [studentSaving, setStudentSaving] = useState(false);
 
   useEffect(() => {
     api.getResult(resultId)
@@ -327,6 +353,38 @@ export default function ResultDetailScreen({ route, navigation }: any) {
     try { await api.saveComments(resultId, comments); }
     catch (e: any) { Alert.alert("Error saving", e.message); }
     finally { setSaving(false); }
+  };
+
+  const startStudentEdit = () => {
+    const s = result?.analyzer_students || result?.analysis?.student || {};
+    setEditName(s.name || "");
+    setEditRoll(s.roll_no || "");
+    setEditClass(s.class || "");
+    setEditSection(s.section || "");
+    setEditingStudent(true);
+  };
+
+  const saveStudentEdit = async () => {
+    const studentId = result?.student_id || result?.analyzer_students?.id;
+    if (!studentId) { Alert.alert("Error", "No student record linked yet — assign first."); return; }
+    setStudentSaving(true);
+    try {
+      const updates: Record<string, string> = {};
+      if (editName.trim())    updates.name    = editName.trim();
+      if (editRoll.trim())    updates.roll_no = editRoll.trim();
+      if (editClass.trim())   updates.class   = editClass.trim();
+      if (editSection.trim()) updates.section = editSection.trim();
+      const { student, mergedInto } = await api.updateStudent(studentId, updates);
+      setResult((prev: any) => ({ ...prev, analyzer_students: student }));
+      setEditingStudent(false);
+      if (mergedInto) {
+        Alert.alert("Merged", `This sheet is now linked to the existing student "${mergedInto.name}" (Roll ${mergedInto.roll_no}, Class ${mergedInto.class}) — the duplicate record was removed.`);
+      }
+    } catch (e: any) {
+      Alert.alert("Save failed", e.message);
+    } finally {
+      setStudentSaving(false);
+    }
   };
 
   const handleMarkOverride = async (questionNo: number, marks: number, reason: string) => {
@@ -462,33 +520,63 @@ export default function ResultDetailScreen({ route, navigation }: any) {
           <View style={styles.scoreCard}>
             <ScoreRing pct={pct} />
             <View style={styles.scoreInfo}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <Text style={[styles.studentName, { marginBottom: 0 }]}>
-                  {student.name || a.student?.name || "Unknown student"}
-                </Text>
-                {!result.student_id && (
-                  <View style={styles.unassignedBadge}>
-                    <Text style={styles.unassignedText}>Unassigned</Text>
+              {editingStudent ? (
+                /* ── Inline student edit form ── */
+                <View style={{ gap: 6 }}>
+                  <TextInput style={styles.editField} value={editName} onChangeText={setEditName} placeholder="Full name" placeholderTextColor={c.textDim} />
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <TextInput style={[styles.editField, { flex: 1 }]} value={editRoll} onChangeText={setEditRoll} placeholder="Roll no." placeholderTextColor={c.textDim} keyboardType="number-pad" />
+                    <TextInput style={[styles.editField, { flex: 1 }]} value={editClass} onChangeText={setEditClass} placeholder="Class" placeholderTextColor={c.textDim} />
+                    <TextInput style={[styles.editField, { flex: 0.8 }]} value={editSection} onChangeText={setEditSection} placeholder="Sec." placeholderTextColor={c.textDim} autoCapitalize="characters" />
                   </View>
-                )}
-              </View>
-              <View style={styles.metaRow}>
-                {(student.roll_no || a.student?.roll_no) && (
-                  <Text style={styles.metaChip}>Roll: {student.roll_no || a.student?.roll_no}</Text>
-                )}
-                {(student.class || a.student?.class) && (
-                  <Text style={styles.metaChip}>Class {student.class || a.student?.class}</Text>
-                )}
-              </View>
-              <Text style={[styles.bigMarks, { color: scoreColor }]}>
-                {obtained} <Text style={styles.bigMarksTotal}>/ {total} marks</Text>
-              </Text>
-              {/* Assign button */}
-              <TouchableOpacity style={styles.assignBtn} onPress={() => setShowAssign(true)}>
-                <Text style={styles.assignBtnText}>
-                  {result.student_id ? "👤 Reassign" : "👤 Assign to student"}
-                </Text>
-              </TouchableOpacity>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <TouchableOpacity style={[styles.assignBtn, { backgroundColor: `${c.success}20`, borderColor: `${c.success}40`, flex: 1, alignItems: "center" }]} onPress={saveStudentEdit} disabled={studentSaving}>
+                      <Text style={[styles.assignBtnText, { color: c.success }]}>{studentSaving ? "Saving…" : "✓ Save"}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.assignBtn, { flex: 1, alignItems: "center" }]} onPress={() => setEditingStudent(false)}>
+                      <Text style={styles.assignBtnText}>✕ Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={{ fontSize: 11, color: c.textDim, lineHeight: 16 }}>
+                    If roll no + class matches another student they will be merged automatically.
+                  </Text>
+                </View>
+              ) : (
+                /* ── Normal view ── */
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <Text style={[styles.studentName, { marginBottom: 0 }]}>
+                      {student.name || a.student?.name || "Unknown student"}
+                    </Text>
+                    {!result.student_id && (
+                      <View style={styles.unassignedBadge}>
+                        <Text style={styles.unassignedText}>Unassigned</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.metaRow}>
+                    {(student.roll_no || a.student?.roll_no) && (
+                      <Text style={styles.metaChip}>Roll: {student.roll_no || a.student?.roll_no}</Text>
+                    )}
+                    {(student.class || a.student?.class) && (
+                      <Text style={styles.metaChip}>Class {student.class || a.student?.class}</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.bigMarks, { color: scoreColor }]}>
+                    {obtained} <Text style={styles.bigMarksTotal}>/ {total} marks</Text>
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                    <TouchableOpacity style={styles.assignBtn} onPress={startStudentEdit}>
+                      <Text style={styles.assignBtnText}>✏️ Edit student</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.assignBtn} onPress={() => setShowAssign(true)}>
+                      <Text style={styles.assignBtnText}>
+                        {result.student_id ? "👤 Reassign" : "👤 Assign"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </View>
           </View>
 
@@ -500,26 +588,65 @@ export default function ResultDetailScreen({ route, navigation }: any) {
           )}
 
           {/* Overall feedback + strengths + improvements */}
-          {(a.overall_feedback || a.strengths?.length > 0 || a.improvement_areas?.length > 0) && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>OVERALL FEEDBACK</Text>
-              {a.overall_feedback && (
-                <Text style={styles.bodyText}>{a.overall_feedback}</Text>
-              )}
-              {a.strengths?.map((s: string, i: number) => (
-                <View key={i} style={styles.bulletRow}>
-                  <Text style={[styles.bullet, { color: c.success }]}>✓</Text>
-                  <Text style={[styles.bulletText, { color: c.success }]}>{s}</Text>
-                </View>
-              ))}
-              {a.improvement_areas?.map((s: string, i: number) => (
-                <View key={i} style={styles.bulletRow}>
-                  <Text style={[styles.bullet, { color: c.warning }]}>→</Text>
-                  <Text style={[styles.bulletText, { color: c.warning }]}>{s}</Text>
-                </View>
-              ))}
-            </View>
-          )}
+          {(a.overall_feedback || a.strengths?.length > 0 || a.improvement_areas?.length > 0) && (() => {
+            // Derive topic groupings from question data
+            const strongTopics = [...new Set(
+              questions.filter((q: any) => q.is_correct || q.marks_awarded >= q.marks_available * 0.8)
+                .map((q: any) => q.concept_tag).filter(Boolean)
+            )];
+            const weakTopics = [...new Set(
+              questions.filter((q: any) => !q.is_correct && q.marks_awarded < q.marks_available * 0.8)
+                .map((q: any) => q.concept_tag).filter(Boolean)
+            )];
+            return (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>OVERALL FEEDBACK</Text>
+                {a.overall_feedback && (
+                  <Text style={styles.bodyText}>{a.overall_feedback}</Text>
+                )}
+                {a.strengths?.length > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={[styles.sectionLabel, { color: c.success }]}>✓ STRENGTHS</Text>
+                    {a.strengths.map((s: string, i: number) => (
+                      <View key={i} style={styles.bulletRow}>
+                        <Text style={[styles.bullet, { color: c.success }]}>✓</Text>
+                        <Text style={[styles.bulletText, { color: c.success }]}>{s}</Text>
+                      </View>
+                    ))}
+                    {strongTopics.length > 0 && (
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                        {strongTopics.map((t: string) => (
+                          <View key={t} style={[styles.topicTag, { backgroundColor: `${c.success}12`, borderColor: `${c.success}30` }]}>
+                            <Text style={[styles.topicTagText, { color: c.success }]}>🏷 {t}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+                {a.improvement_areas?.length > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={[styles.sectionLabel, { color: c.warning }]}>→ AREAS TO IMPROVE</Text>
+                    {a.improvement_areas.map((s: string, i: number) => (
+                      <View key={i} style={styles.bulletRow}>
+                        <Text style={[styles.bullet, { color: c.warning }]}>→</Text>
+                        <Text style={[styles.bulletText, { color: c.warning }]}>{s}</Text>
+                      </View>
+                    ))}
+                    {weakTopics.length > 0 && (
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                        {weakTopics.map((t: string) => (
+                          <View key={t} style={[styles.topicTag, { backgroundColor: `${c.warning}12`, borderColor: `${c.warning}30` }]}>
+                            <Text style={[styles.topicTagText, { color: c.warning }]}>🏷 {t}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          })()}
 
           {/* Question-by-question breakdown */}
           {questions.length > 0 && (
@@ -621,7 +748,10 @@ const styles = StyleSheet.create({
   overrideInput:    { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 10, fontSize: 20, fontWeight: "700", color: c.text, textAlign: "center", marginTop: 4 },
   overrideSaveBtn:  { backgroundColor: c.warning, borderRadius: 8, padding: 10, alignItems: "center", marginTop: 10 },
   overrideSaveBtnText: { fontSize: 13, color: "#fff", fontWeight: "700" },
+  topicTag:         { backgroundColor: `${c.accent}12`, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: `${c.accent}30` },
+  topicTagText:     { fontSize: 11, color: c.accent, fontWeight: "600" },
   purple:           c.purple,
+  editField:        { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 7, padding: 8, fontSize: 13, color: c.text },
   // Unassigned badge + assign button
   unassignedBadge:  { backgroundColor: `${c.warning}20`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: `${c.warning}40` },
   unassignedText:   { fontSize: 10, color: c.warning, fontWeight: "700" },
