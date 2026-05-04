@@ -1,6 +1,6 @@
 import { Router } from "express";
 import {
-  supabaseAdmin, client, upload,
+  supabaseAdmin, client, upload, ADMIN_USER_ID,
   LENIENCY_PROMPTS, fileToClaudeContent, uploadToStorage,
   getRequestUser, getUserSchool, getPDFPageCount, checkCredits, deductCredits,
 } from "../lib/shared.js";
@@ -446,12 +446,20 @@ router.get("/results/:id", async (req, res) => {
     if (!supabaseAdmin) return res.json({ result: null });
     const { data, error } = await supabaseAdmin
       .from("analyzer_results")
-      .select("*, analyzer_tests(name, subject, total_marks, created_by), analyzer_students(name, roll_no, class, section)")
+      .select("*, analyzer_tests(name, subject, total_marks, created_by, school_id), analyzer_students(name, roll_no, class, section)")
       .eq("id", req.params.id).single();
     if (error) throw error;
     const user = await getRequestUser(req);
-    if (user && data?.analyzer_tests?.created_by && data.analyzer_tests.created_by !== user.id) {
-      return res.status(403).json({ error: "Not authorised" });
+    if (user) {
+      // Allow if user belongs to the same school as the test
+      const schoolInfo = await getUserSchool(user.id, user.email);
+      const testSchoolId = data?.analyzer_tests?.school_id;
+      const sameSchool = schoolInfo && testSchoolId && schoolInfo.school.id === testSchoolId;
+      const isCreator = data?.analyzer_tests?.created_by === user.id;
+      const isAdmin   = user.id === ADMIN_USER_ID;
+      if (!sameSchool && !isCreator && !isAdmin) {
+        return res.status(403).json({ error: "Not authorised" });
+      }
     }
     res.json({ result: data });
   } catch (err) { res.status(500).json({ error: err.message }); }
