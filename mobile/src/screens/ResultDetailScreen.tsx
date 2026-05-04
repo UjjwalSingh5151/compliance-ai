@@ -135,15 +135,39 @@ function ScoreRing({ pct }: { pct: number }) {
 }
 
 // ─── Expandable question card ─────────────────────────────────────────────────
-function QuestionCard({ q, comment, onCommentChange }: {
+function QuestionCard({ q, comment, onCommentChange, onOverride }: {
   q: any;
   comment: string;
   onCommentChange: (no: string, val: string) => void;
+  onOverride: (no: number, marks: number, reason: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showOverride, setShowOverride] = useState(false);
+  const [overrideVal, setOverrideVal]   = useState(String(q.marks_awarded));
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overrideSaving, setOverrideSaving] = useState(false);
+
   const pct = q.marks_available > 0
     ? Math.round((q.marks_awarded / q.marks_available) * 100) : 0;
   const color = pct === 100 ? c.success : pct >= 60 ? c.warning : c.danger;
+
+  const handleSaveOverride = async () => {
+    const marks = parseFloat(overrideVal);
+    if (isNaN(marks) || marks < 0 || marks > q.marks_available) {
+      Alert.alert("Invalid", `Marks must be between 0 and ${q.marks_available}.`);
+      return;
+    }
+    setOverrideSaving(true);
+    try {
+      await onOverride(q.no, marks, overrideReason.trim());
+      setShowOverride(false);
+      setOverrideReason("");
+    } catch (e: any) {
+      Alert.alert("Override failed", e.message);
+    } finally {
+      setOverrideSaving(false);
+    }
+  };
 
   return (
     <View style={styles.qCard}>
@@ -221,11 +245,55 @@ function QuestionCard({ q, comment, onCommentChange }: {
               style={styles.commentInput}
               value={comment || ""}
               onChangeText={(v) => onCommentChange(String(q.no), v)}
-              placeholder="Add override or personal note…"
+              placeholder="Add a personal note…"
               placeholderTextColor={c.textDim}
               multiline
               numberOfLines={2}
             />
+          </View>
+
+          {/* Mark override */}
+          <View style={styles.qSection}>
+            <TouchableOpacity
+              style={styles.overrideToggle}
+              onPress={() => { setShowOverride((v) => !v); setOverrideVal(String(q.marks_awarded)); }}
+            >
+              <Text style={styles.overrideToggleText}>
+                {showOverride ? "✕ Cancel override" : "✏️ Override marks"}
+              </Text>
+            </TouchableOpacity>
+            {showOverride && (
+              <View style={styles.overrideBox}>
+                <Text style={styles.qSectionLabel}>OVERRIDE MARKS (max {q.marks_available})</Text>
+                <TextInput
+                  style={styles.overrideInput}
+                  value={overrideVal}
+                  onChangeText={setOverrideVal}
+                  keyboardType="decimal-pad"
+                  placeholder={`0 – ${q.marks_available}`}
+                  placeholderTextColor={c.textDim}
+                />
+                <Text style={[styles.qSectionLabel, { marginTop: 10 }]}>REASON (optional)</Text>
+                <TextInput
+                  style={styles.commentInput}
+                  value={overrideReason}
+                  onChangeText={setOverrideReason}
+                  placeholder="e.g. Diagram was correct"
+                  placeholderTextColor={c.textDim}
+                  multiline
+                  numberOfLines={2}
+                />
+                <TouchableOpacity
+                  style={[styles.overrideSaveBtn, overrideSaving && { opacity: 0.5 }]}
+                  onPress={handleSaveOverride}
+                  disabled={overrideSaving}
+                >
+                  <Text style={styles.overrideSaveBtnText}>
+                    {overrideSaving ? "Saving…" : "Save Override"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       )}
@@ -259,6 +327,19 @@ export default function ResultDetailScreen({ route, navigation }: any) {
     try { await api.saveComments(resultId, comments); }
     catch (e: any) { Alert.alert("Error saving", e.message); }
     finally { setSaving(false); }
+  };
+
+  const handleMarkOverride = async (questionNo: number, marks: number, reason: string) => {
+    await api.saveMarkOverride(resultId, questionNo, marks, reason);
+    // Patch local state so UI reflects new marks immediately
+    setResult((prev: any) => {
+      if (!prev?.analysis?.questions) return prev;
+      const questions = prev.analysis.questions.map((q: any) =>
+        q.no === questionNo ? { ...q, marks_awarded: marks } : q
+      );
+      const marks_obtained = questions.reduce((sum: number, q: any) => sum + (q.marks_awarded || 0), 0);
+      return { ...prev, marks_obtained, analysis: { ...prev.analysis, questions } };
+    });
   };
 
   const shareResult = () => {
@@ -454,6 +535,7 @@ export default function ResultDetailScreen({ route, navigation }: any) {
                   onCommentChange={(no, val) =>
                     setComments((prev) => ({ ...prev, [no]: val }))
                   }
+                  onOverride={handleMarkOverride}
                 />
               ))}
             </View>
@@ -533,6 +615,12 @@ const styles = StyleSheet.create({
   qBox:             { backgroundColor: c.card, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: c.border },
   qBoxText:         { fontSize: 13, color: c.textMid, lineHeight: 20 },
   commentInput:     { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 10, fontSize: 13, color: c.text, minHeight: 60, textAlignVertical: "top", fontFamily: "System" },
+  overrideToggle:   { alignSelf: "flex-start", backgroundColor: `${c.warning}15`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: `${c.warning}40` },
+  overrideToggleText: { fontSize: 12, color: c.warning, fontWeight: "600" },
+  overrideBox:      { marginTop: 10, gap: 6 },
+  overrideInput:    { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 10, fontSize: 20, fontWeight: "700", color: c.text, textAlign: "center", marginTop: 4 },
+  overrideSaveBtn:  { backgroundColor: c.warning, borderRadius: 8, padding: 10, alignItems: "center", marginTop: 10 },
+  overrideSaveBtnText: { fontSize: 13, color: "#fff", fontWeight: "700" },
   purple:           c.purple,
   // Unassigned badge + assign button
   unassignedBadge:  { backgroundColor: `${c.warning}20`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: `${c.warning}40` },

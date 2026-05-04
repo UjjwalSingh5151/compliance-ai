@@ -12,7 +12,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Keyboard,
 } from "react-native";
 import { sendEmailOtp, verifyEmailOtp } from "../lib/auth";
 import { c } from "../lib/theme";
@@ -48,6 +48,7 @@ export default function LoginScreen() {
   // ── Auto-verify when all 6 digits filled ──────────────────────────────────
   useEffect(() => {
     if (code.length === 6 && step === "verify" && !loading) {
+      Keyboard.dismiss();
       handleVerify();
     }
   }, [code]);

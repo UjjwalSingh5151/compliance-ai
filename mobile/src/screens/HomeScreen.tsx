@@ -79,8 +79,22 @@ export default function HomeScreen({ navigation }: any) {
               {resultCount} notebook{resultCount !== 1 ? "s" : ""} scanned · {item.total_marks} marks
             </Text>
           </View>
-          <View style={styles.scanPill}>
-            <Text style={styles.scanPillText}>+ Scan</Text>
+          <View style={styles.cardActions}>
+            {resultCount > 0 && (
+              <TouchableOpacity
+                style={styles.insightsPill}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  navigation.navigate("Insights", { testId: item.id, testName: item.name });
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.insightsPillText}>📊</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.scanPill}>
+              <Text style={styles.scanPillText}>+ Scan</Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -212,8 +226,11 @@ const styles = StyleSheet.create({
   cardLeft:       { flex: 1 },
   testName:       { fontSize: 15, fontWeight: "600", color: c.text, marginBottom: 4 },
   testMeta:       { fontSize: 12, color: c.textMid, marginTop: 2 },
-  scanPill:       { backgroundColor: c.accentDim, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 10 },
+  cardActions:    { flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 10 },
+  scanPill:       { backgroundColor: c.accentDim, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   scanPillText:   { fontSize: 12, color: c.accent, fontWeight: "700" },
+  insightsPill:   { backgroundColor: `${c.purple}20`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: `${c.purple}40` },
+  insightsPillText: { fontSize: 14 },
   // Empty
   empty:          { alignItems: "center", paddingTop: 60 },
   emptyEmoji:     { fontSize: 48, marginBottom: 16 },

@@ -89,6 +89,13 @@ export default function ProfileScreen({ navigation }: any) {
         setSchool(schoolRes.value.school);
         const t = teacherRes.status === "fulfilled" ? teacherRes.value.teacher : null;
         setTeacher(t);
+        // If teacher has no CRM record yet, auto-enter edit mode so they can create one
+        if (!t) {
+          setEditName("");
+          setEditSubjects("");
+          setEditClasses("");
+          setEditing(true);
+        }
       } else {
         // Not a teacher — try student path
         const studentRes = await api.getStudentMe().catch(() => null);
@@ -178,7 +185,8 @@ export default function ProfileScreen({ navigation }: any) {
             <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
           </TouchableOpacity>
         )}
-        {!editing && (!isTeacher || !teacher) && <View style={{ width: 64 }} />}
+        {!editing && isTeacher && !teacher && <View style={{ width: 64 }} />}
+        {!editing && !isTeacher && <View style={{ width: 64 }} />}
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -203,7 +211,7 @@ export default function ProfileScreen({ navigation }: any) {
             {teacher ? (
               editing ? (
                 /* ── Edit mode ── */
-                <Section title="EDIT YOUR DETAILS">
+                <Section title={teacher ? "EDIT YOUR DETAILS" : "SET UP YOUR PROFILE"}>
                   <EditRow label="Name *" value={editName} onChange={setEditName} placeholder="Your full name" />
                   <EditRow
                     label="Subjects"

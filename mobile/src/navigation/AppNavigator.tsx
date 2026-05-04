@@ -71,9 +71,22 @@ export default function AppNavigator() {
 
   // 1. Listen for auth changes
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    // Handle stale/invalid refresh tokens gracefully — sign out instead of crashing
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        // Expired or invalid token stored locally — wipe it and go to login
+        supabase.auth.signOut().catch(() => {});
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        setSession(session);
+      } else {
+        setSession(session);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);

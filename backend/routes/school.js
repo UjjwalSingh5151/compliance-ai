@@ -194,32 +194,41 @@ router.get("/teachers/me", requireSchool, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// PATCH /teachers/me — teacher updates their own CRM record
+// PATCH /teachers/me — teacher updates (or creates) their own CRM record
 router.patch("/teachers/me", requireSchool, async (req, res) => {
   try {
     const email = req.user.email?.toLowerCase();
     if (!email) return res.status(400).json({ error: "No email on account" });
 
-    // Find the teacher record for this user
+    // Only allow self-service fields — name, subjects, classes
+    const allowed = ["name", "subjects", "classes"];
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
+    if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields to update" });
+
+    // Find existing record to decide insert vs update
     const { data: existing } = await supabaseAdmin
       .from("school_teachers")
       .select("id")
       .eq("school_id", req.school.id)
       .ilike("email", email)
       .maybeSingle();
-    if (!existing) return res.status(404).json({ error: "No teacher record found for your email. Ask your admin to add your email to the teacher list." });
 
-    // Only allow self-service fields — name, subjects, classes
-    // Email is not editable (it's tied to auth); admin controls class/subject assignments via web portal
-    const allowed = ["name", "subjects", "classes"];
-    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
-    if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields to update" });
+    let data, error;
+    if (existing) {
+      // Update existing record
+      ({ data, error } = await supabaseAdmin
+        .from("school_teachers")
+        .update(updates)
+        .eq("id", existing.id)
+        .select().single());
+    } else {
+      // Create a new record for this teacher (self-registration)
+      ({ data, error } = await supabaseAdmin
+        .from("school_teachers")
+        .insert({ school_id: req.school.id, email, ...updates })
+        .select().single());
+    }
 
-    const { data, error } = await supabaseAdmin
-      .from("school_teachers")
-      .update(updates)
-      .eq("id", existing.id)
-      .select().single();
     if (error) throw error;
     res.json({ teacher: data });
   } catch (err) { res.status(500).json({ error: err.message }); }

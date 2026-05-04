@@ -25,6 +25,10 @@ import StudentResultView from "./components/StudentResultView";
 import TestResults from "./components/TestResults";
 
 function getShareToken() {
+  // Path-based share URL: https://app.kelzo.ai/share/{token}
+  const pathMatch = window.location.pathname.match(/^\/share\/(.+)$/);
+  if (pathMatch) return pathMatch[1];
+  // Hash-based fallback (Expo deep link or old format): #/share/{token}
   const hash = window.location.hash;
   if (hash.startsWith("#/share/")) return hash.replace("#/share/", "");
   return null;
