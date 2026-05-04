@@ -14,10 +14,18 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Keyboard,
 } from "react-native";
-import { sendEmailOtp, verifyEmailOtp } from "../lib/auth";
+import { sendEmailOtp, verifyEmailOtp, signInWithPassword } from "../lib/auth";
+
+// ─── Bypass accounts (no OTP — direct password login) ─────────────────────────
+// Add any internal email here. Set the matching password in Supabase Dashboard →
+// Authentication → Users → [user] → Reset Password (set a custom one).
+const BYPASS_EMAILS: Record<string, string> = {
+  // "student@kelzo.app":  "your-student-pin",
+  // "teacher@kelzo.app":  "your-teacher-pin",
+};
 import { c } from "../lib/theme";
 
-type Step = "email" | "verify";
+type Step = "email" | "verify" | "pin";
 
 const RESEND_SECONDS = 30;
 
@@ -25,6 +33,7 @@ export default function LoginScreen() {
   const [step, setStep]         = useState<Step>("email");
   const [email, setEmail]       = useState("");
   const [code, setCode]         = useState("");
+  const [pin, setPin]           = useState("");
   const [loading, setLoading]   = useState(false);
   const [countdown, setCountdown] = useState(0);
   const timerRef                = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -53,13 +62,22 @@ export default function LoginScreen() {
     }
   }, [code]);
 
-  // ── Send OTP ───────────────────────────────────────────────────────────────
+  // ── Send OTP (or go straight to PIN for bypass accounts) ─────────────────
   const handleSendCode = async () => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes("@")) {
       Alert.alert("Invalid email", "Please enter a valid email address.");
       return;
     }
+    setEmail(trimmed);
+
+    // Bypass: known internal account → skip OTP, go to PIN step
+    if (trimmed in BYPASS_EMAILS) {
+      setPin("");
+      setStep("pin");
+      return;
+    }
+
     setLoading(true);
     const { error } = await sendEmailOtp(trimmed);
     setLoading(false);
@@ -67,12 +85,24 @@ export default function LoginScreen() {
       Alert.alert("Could not send code", error.message);
       return;
     }
-    setEmail(trimmed);
     setCode("");
     setStep("verify");
     setCountdown(RESEND_SECONDS);
-    // Auto-focus the code input after a short delay
     setTimeout(() => codeRef.current?.focus(), 300);
+  };
+
+  // ── Sign in with PIN (bypass accounts only) ────────────────────────────────
+  const handlePinLogin = async () => {
+    const password = BYPASS_EMAILS[email];
+    if (!password) return;
+    setLoading(true);
+    const { error } = await signInWithPassword(email, password);
+    setLoading(false);
+    if (error) {
+      Alert.alert("Incorrect PIN", "The PIN you entered is wrong. Try again.");
+      setPin("");
+    }
+    // On success AppNavigator auth listener handles navigation
   };
 
   // ── Verify OTP ─────────────────────────────────────────────────────────────
@@ -157,6 +187,46 @@ export default function LoginScreen() {
           </View>
         )}
 
+        {/* ── Step 1b: PIN (bypass accounts) ── */}
+        {step === "pin" && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Enter your PIN</Text>
+            <Text style={styles.cardHint}>
+              Signing in as{" "}
+              <Text style={styles.emailHighlight}>{email}</Text>
+            </Text>
+
+            <TextInput
+              style={styles.codeInput}
+              value={pin}
+              onChangeText={setPin}
+              placeholder="• • • • • •"
+              placeholderTextColor={c.textDim}
+              secureTextEntry
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handlePinLogin}
+            />
+
+            <TouchableOpacity
+              style={[styles.btn, (loading || pin.length === 0) && styles.btnDisabled]}
+              onPress={handlePinLogin}
+              disabled={loading || pin.length === 0}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.btnText}>Sign In →</Text>
+              }
+            </TouchableOpacity>
+
+            <View style={styles.resendRow}>
+              <TouchableOpacity onPress={() => { setStep("email"); setPin(""); }}>
+                <Text style={styles.resendLink}>← Change email</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ── Step 2: Verify ── */}
         {step === "verify" && (
           <View style={styles.card}>
@@ -216,6 +286,8 @@ export default function LoginScreen() {
         <Text style={styles.footerHint}>
           {step === "email"
             ? "Use the email your school admin added for you."
+            : step === "pin"
+            ? "Use the PIN set for this account."
             : "The code expires in 10 minutes."}
         </Text>
 

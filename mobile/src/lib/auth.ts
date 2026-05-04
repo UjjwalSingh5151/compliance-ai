@@ -38,6 +38,19 @@ export async function verifyEmailOtp(email: string, token: string) {
   });
 }
 
+// ─── Password login (bypass accounts) ────────────────────────────────────────
+
+/**
+ * Sign in directly with email + password.
+ * Used for internal bypass accounts that skip the OTP flow.
+ */
+export async function signInWithPassword(email: string, password: string) {
+  return supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+}
+
 // ─── Sign out ────────────────────────────────────────────────────────────────
 
 export async function signOut() {
