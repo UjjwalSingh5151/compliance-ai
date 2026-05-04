@@ -89,8 +89,23 @@ router.get("/me", requireSchool, async (req, res) => {
         .eq("school_id", school.id)
         .order("name");
 
+      // Build creator-id → email map so we can match tests by email fallback
+      // (tests created via mobile app never have teacher_id set)
+      const creatorIds = [...new Set((tests || []).map((t) => t.created_by).filter(Boolean))];
+      const creatorEmailMap = {};
+      for (const uid of creatorIds) {
+        try {
+          const { data: { user: u } } = await supabaseAdmin.auth.admin.getUserById(uid);
+          if (u?.email) creatorEmailMap[uid] = u.email.toLowerCase();
+        } catch {}
+      }
+
       teacherStats = (teachers || []).map((t) => {
-        const tTests = (tests || []).filter((test) => test.teacher_id === t.id);
+        const teacherEmail = t.email?.toLowerCase();
+        const tTests = (tests || []).filter((test) =>
+          test.teacher_id === t.id ||
+          (teacherEmail && test.created_by && creatorEmailMap[test.created_by] === teacherEmail)
+        );
         const tResults = results.filter((r) => tTests.some((tt) => tt.id === r.test_id));
         return {
           id: t.id, name: t.name, email: t.email,
@@ -131,13 +146,27 @@ router.get("/teacher/:teacherId", requireSchool, async (req, res) => {
       .eq("id", req.params.teacherId).eq("school_id", req.school.id).single();
     if (tErr || !teacher) return res.status(404).json({ error: "Teacher not found" });
 
-    // Tests linked to this teacher via teacher_id
-    const { data: tests } = await supabaseAdmin
+    // Tests linked to this teacher via teacher_id OR via creator email (mobile app never sets teacher_id)
+    const { data: allTests } = await supabaseAdmin
       .from("analyzer_tests")
-      .select("id, name, subject, class, section, total_marks, created_at")
+      .select("id, name, subject, class, section, total_marks, created_at, teacher_id, created_by")
       .eq("school_id", req.school.id)
-      .eq("teacher_id", teacher.id)
       .order("created_at", { ascending: false });
+
+    // Build a set of creator user IDs that match this teacher's email
+    const teacherEmail = teacher.email?.toLowerCase();
+    const creatorIdsForTeacher = new Set();
+    const creatorUids = [...new Set((allTests || []).map((t) => t.created_by).filter(Boolean))];
+    for (const uid of creatorUids) {
+      try {
+        const { data: { user: u } } = await supabaseAdmin.auth.admin.getUserById(uid);
+        if (u?.email?.toLowerCase() === teacherEmail) creatorIdsForTeacher.add(uid);
+      } catch {}
+    }
+
+    const tests = (allTests || []).filter((t) =>
+      t.teacher_id === teacher.id || (t.created_by && creatorIdsForTeacher.has(t.created_by))
+    );
 
     const testIds = (tests || []).map((t) => t.id);
     let results = [];

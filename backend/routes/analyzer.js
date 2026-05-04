@@ -42,9 +42,22 @@ router.post("/tests", upload.single("questionPaper"), async (req, res) => {
 
     const user = await getRequestUser(req);
     const schoolInfo = user ? await getUserSchool(user.id, user.email) : null;
+
+    // Auto-assign teacher_id by matching creator email to school_teachers record
+    let resolvedTeacherId = teacherId || null;
+    if (!resolvedTeacherId && user?.email && schoolInfo?.school?.id) {
+      const { data: teacherRow } = await supabaseAdmin
+        .from("school_teachers")
+        .select("id")
+        .eq("school_id", schoolInfo.school.id)
+        .ilike("email", user.email)
+        .maybeSingle();
+      if (teacherRow) resolvedTeacherId = teacherRow.id;
+    }
+
     const { data, error } = await supabaseAdmin
       .from("analyzer_tests")
-      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent, created_by: user?.id || null, school_id: schoolInfo?.school?.id || null, class: cls?.trim() || null, section: section?.trim() || null, teacher_id: teacherId || null })
+      .insert({ name, subject, total_marks: parseInt(totalMarks), leniency: parseInt(leniency), instructions, question_paper_url: questionPaperUrl, question_paper_content: questionPaperContent, created_by: user?.id || null, school_id: schoolInfo?.school?.id || null, class: cls?.trim() || null, section: section?.trim() || null, teacher_id: resolvedTeacherId })
       .select().single();
     if (error) throw error;
     res.json({ test: data });
