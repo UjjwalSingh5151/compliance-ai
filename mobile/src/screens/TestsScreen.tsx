@@ -33,15 +33,36 @@ export default function TestsScreen({ navigation }: any) {
 
   useFocusEffect(useCallback(() => { load(true); }, []));
 
+  const deleteTest = (item: Test) => {
+    Alert.alert(
+      "Delete test?",
+      `"${item.name}" and all its answer sheets will be permanently deleted.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete", style: "destructive",
+          onPress: async () => {
+            try {
+              await api.deleteTest(item.id);
+              setTests((prev) => prev.filter((t) => t.id !== item.id));
+            } catch (e: any) {
+              Alert.alert("Delete failed", e.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderTest = ({ item }: { item: Test }) => {
     const resultCount = item.analyzer_results?.[0]?.count ?? 0;
     return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate("Scan", { test: item })}
-        activeOpacity={0.75}
-      >
-        <View style={styles.cardRow}>
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.cardMain}
+          onPress={() => navigation.navigate("Scan", { test: item })}
+          activeOpacity={0.75}
+        >
           <View style={styles.cardLeft}>
             <Text style={styles.testName} numberOfLines={1}>{item.name}</Text>
             <Text style={styles.testMeta}>
@@ -52,11 +73,12 @@ export default function TestsScreen({ navigation }: any) {
               {resultCount} sheet{resultCount !== 1 ? "s" : ""} analyzed · {item.total_marks} marks
             </Text>
           </View>
-          <View style={styles.cardRight}>
-            <Text style={styles.arrow}>›</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+          <Text style={styles.arrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteTest(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.deleteBtnText}>🗑</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -110,13 +132,14 @@ const styles = StyleSheet.create({
   signOut:        { fontSize: 13, color: c.textDim, paddingTop: 4 },
   list:           { padding: 16, gap: 10 },
   emptyContainer: { flex: 1, padding: 16 },
-  card:           { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border },
-  cardRow:        { flexDirection: "row", alignItems: "center" },
+  card:           { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, flexDirection: "row", alignItems: "center" },
+  cardMain:       { flex: 1, flexDirection: "row", alignItems: "center", padding: 16 },
   cardLeft:       { flex: 1 },
-  cardRight:      { marginLeft: 8 },
   testName:       { fontSize: 15, fontWeight: "600", color: c.text, marginBottom: 4 },
   testMeta:       { fontSize: 12, color: c.textMid, marginTop: 2 },
-  arrow:          { fontSize: 22, color: c.textDim },
+  arrow:          { fontSize: 22, color: c.textDim, marginLeft: 8 },
+  deleteBtn:      { paddingHorizontal: 14, paddingVertical: 16, borderLeftWidth: 1, borderLeftColor: c.border },
+  deleteBtnText:  { fontSize: 18 },
   empty:          { alignItems: "center", paddingTop: 80 },
   emptyEmoji:     { fontSize: 48, marginBottom: 16 },
   emptyTitle:     { fontSize: 16, fontWeight: "700", color: c.text, marginBottom: 8 },

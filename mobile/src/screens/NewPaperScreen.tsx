@@ -146,9 +146,6 @@ export default function NewPaperScreen({ navigation }: any) {
           <TouchableOpacity style={styles.uploadPdfBtn} onPress={() => pickPDF()}>
             <Text style={styles.uploadPdfBtnText}>📄 Upload PDF instead</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.skipBtn} onPress={() => setStep("details")}>
-            <Text style={styles.skipBtnText}>Skip — fill details manually</Text>
-          </TouchableOpacity>
         </View>
       </View>
     );

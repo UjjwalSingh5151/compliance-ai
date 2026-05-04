@@ -266,6 +266,11 @@ export const api = {
   generatePaper: (formData: FormData) =>
     request<{ paper: Record<string, unknown> }>("/api/papers/generate", { method: "POST", body: formData }),
 
+  deleteTest: (id: string) =>
+    request<{ ok: boolean }>(`/api/analyzer/tests/${id}`, { method: "DELETE" }),
+  deleteResult: (id: string) =>
+    request<{ ok: boolean }>(`/api/analyzer/results/${id}`, { method: "DELETE" }),
+
   // Test results
   getTestResults: (testId: string) =>
     request<{ test: Test; results: Result[] }>(`/api/analyzer/tests/${testId}/results`),

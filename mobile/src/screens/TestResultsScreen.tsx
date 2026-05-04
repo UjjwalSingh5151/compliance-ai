@@ -31,6 +31,28 @@ export default function TestResultsScreen({ route, navigation }: any) {
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const deleteResult = (item: any) => {
+    const name = item.analyzer_students?.name || item.analysis?.student?.name || "this result";
+    Alert.alert(
+      "Delete answer sheet?",
+      `"${name}" will be permanently deleted.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete", style: "destructive",
+          onPress: async () => {
+            try {
+              await api.deleteResult(item.id);
+              setResults((prev) => prev.filter((r) => r.id !== item.id));
+            } catch (e: any) {
+              Alert.alert("Delete failed", e.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const load = async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
@@ -60,25 +82,30 @@ export default function TestResultsScreen({ route, navigation }: any) {
     };
 
     return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate("ResultDetail", { resultId: item.id, testName: test.name })}
-        activeOpacity={0.75}
-      >
-        <View style={styles.cardLeft}>
-          <Text style={styles.studentName}>{name}</Text>
-          {roll  && <Text style={styles.meta}>Roll: {roll}</Text>}
-          {date  && <Text style={styles.meta}>{date}</Text>}
-        </View>
-        <View style={styles.cardRight}>
-          <ScoreBadge obtained={item.marks_obtained} total={item.total_marks || test.total_marks} />
-          {item.share_token && (
-            <TouchableOpacity style={styles.shareIconBtn} onPress={shareResult} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.shareIconText}>🔗</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </TouchableOpacity>
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.cardMain}
+          onPress={() => navigation.navigate("ResultDetail", { resultId: item.id, testName: test.name })}
+          activeOpacity={0.75}
+        >
+          <View style={styles.cardLeft}>
+            <Text style={styles.studentName}>{name}</Text>
+            {roll && <Text style={styles.meta}>Roll: {roll}</Text>}
+            {date && <Text style={styles.meta}>{date}</Text>}
+          </View>
+          <View style={styles.cardRight}>
+            <ScoreBadge obtained={item.marks_obtained} total={item.total_marks || test.total_marks} />
+            {item.share_token && (
+              <TouchableOpacity style={styles.shareIconBtn} onPress={shareResult} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.shareIconText}>🔗</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteResult(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.deleteBtnText}>🗑</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -187,9 +214,12 @@ const styles = StyleSheet.create({
   // List
   list:         { padding: 14, gap: 10 },
   emptyContainer: { flex: 1 },
-  card:           { flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border },
+  card:           { flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border },
+  cardMain:       { flex: 1, flexDirection: "row", alignItems: "center", padding: 16 },
   cardLeft:       { flex: 1 },
   cardRight:      { alignItems: "flex-end", gap: 8 },
+  deleteBtn:      { paddingHorizontal: 14, paddingVertical: 20, borderLeftWidth: 1, borderLeftColor: c.border },
+  deleteBtnText:  { fontSize: 18 },
   shareIconBtn:   { padding: 4 },
   shareIconText:  { fontSize: 18 },
   studentName:  { fontSize: 15, fontWeight: "600", color: c.text, marginBottom: 3 },
