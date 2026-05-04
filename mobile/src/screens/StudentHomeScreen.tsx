@@ -16,6 +16,7 @@ export default function StudentHomeScreen({ navigation }: any) {
   const [avgPct, setAvgPct]           = useState(0);
   const [fingerprint, setFingerprint] = useState<LearningFingerprint | null>(null);
   const [allResults, setAllResults]   = useState<any[]>([]);
+  const [weakCount, setWeakCount]     = useState(0);
 
   const load = async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -40,6 +41,17 @@ export default function StudentHomeScreen({ navigation }: any) {
         );
         setAvgPct(avg);
       }
+
+      // Weak concept count (concept_tags with >0 wrong answers across all questions)
+      const conceptWrong: Record<string, number> = {};
+      for (const r of results) {
+        for (const q of (r.analysis?.questions || [])) {
+          if (!q.concept_tag) continue;
+          const isCorrect = q.is_correct || (q.marks_awarded >= q.marks_available);
+          if (!isCorrect) conceptWrong[q.concept_tag] = (conceptWrong[q.concept_tag] || 0) + 1;
+        }
+      }
+      setWeakCount(Object.keys(conceptWrong).length);
 
       // Group by subject
       const grouped: Record<string, any[]> = {};
@@ -171,6 +183,12 @@ export default function StudentHomeScreen({ navigation }: any) {
                   label="Average score" value={`${avgPct}%`}
                   color={avgPct >= 75 ? c.success : avgPct >= 40 ? c.warning : c.danger}
                 />
+                {weakCount > 0 && (
+                  <>
+                    <View style={styles.statDivider} />
+                    <StatItem label="Weak areas" value={`${weakCount}`} color={c.danger} />
+                  </>
+                )}
               </View>
               {/* Analytics panel */}
               <PerformancePanel results={allResults} fingerprint={fingerprint} />
