@@ -114,6 +114,7 @@ export interface Result {
   analyzed_at?: string;
   share_token?: string;
   original_sheet_url?: string;
+  revision_notes?: string | null;
   teacher_comments?: Record<string, string>;
   analysis: ResultAnalysis;
   analyzer_tests?: { name: string; subject?: string; total_marks: number; created_by?: string };

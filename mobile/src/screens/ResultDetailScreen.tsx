@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
   overrideSaveBtnText: { fontSize: 13, color: "#fff", fontWeight: "700" },
   topicTag:         { backgroundColor: `${c.accent}12`, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: `${c.accent}30` },
   topicTagText:     { fontSize: 11, color: c.accent, fontWeight: "600" },
-  purple:           c.purple,
+
   editField:        { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 7, padding: 8, fontSize: 13, color: c.text },
   // Unassigned badge + assign button
   unassignedBadge:  { backgroundColor: `${c.warning}20`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: `${c.warning}40` },
