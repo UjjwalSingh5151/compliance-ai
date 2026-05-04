@@ -360,6 +360,89 @@ function TeacherDetail({ teacherId, teacherName, onBack, isMobile }) {
   );
 }
 
+// ─── Class → Subject breakdown card ──────────────────────────────────────────
+function SubjectRow({ sub, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const hasInsights = sub.topStrengths?.length > 0 || sub.topMistakes?.length > 0;
+  return (
+    <div style={{ borderBottom: `1px solid ${c.border}` }}>
+      {/* Subject header row */}
+      <div
+        onClick={() => hasInsights && setOpen((v) => !v)}
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0", cursor: hasInsights ? "pointer" : "default" }}
+      >
+        <span style={{ fontSize: 12, background: `${c.purple}18`, color: c.purple, padding: "2px 9px", borderRadius: 10, fontWeight: 600, flexShrink: 0 }}>
+          {sub.subject}
+        </span>
+        <div style={{ flex: 1, display: "flex", gap: 14 }}>
+          <span style={{ fontSize: 12, color: c.textDim }}>
+            <strong style={{ color: c.text }}>{sub.testCount}</strong> test{sub.testCount !== 1 ? "s" : ""}
+          </span>
+          <span style={{ fontSize: 12, color: c.textDim }}>
+            <strong style={{ color: c.text }}>{sub.resultCount}</strong> sheet{sub.resultCount !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <ScoreBadge score={sub.avgScore} />
+        {hasInsights && (
+          <span style={{ fontSize: 11, color: c.textDim, marginLeft: 4 }}>{open ? "▲" : "▼"}</span>
+        )}
+      </div>
+
+      {/* Expanded strengths + mistakes */}
+      {open && hasInsights && (
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, paddingBottom: 12 }}>
+          {sub.topStrengths?.length > 0 && (
+            <div style={{ background: `${c.success}08`, border: `1px solid ${c.success}20`, borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: c.success, marginBottom: 7, letterSpacing: 0.5 }}>STRENGTHS</div>
+              <TopicList items={sub.topStrengths} color={c.success} />
+            </div>
+          )}
+          {sub.topMistakes?.length > 0 && (
+            <div style={{ background: `${c.danger}08`, border: `1px solid ${c.danger}20`, borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: c.danger, marginBottom: 7, letterSpacing: 0.5 }}>FOCUS AREAS</div>
+              <TopicList items={sub.topMistakes} color={c.danger} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClassCard({ cls, isMobile }) {
+  const [expanded, setExpanded] = useState(true);
+  const clsColor = c.accent;
+  return (
+    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+      {/* Class header */}
+      <div
+        onClick={() => setExpanded((v) => !v)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", cursor: "pointer", background: `${clsColor}08`, borderBottom: expanded ? `1px solid ${c.border}` : "none" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: c.text }}>{cls.class}</span>
+          <span style={{ fontSize: 11, color: c.textDim }}>
+            {cls.totalTests} test{cls.totalTests !== 1 ? "s" : ""} · {cls.totalResults} sheet{cls.totalResults !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <ScoreBadge score={cls.avgScore} />
+          <span style={{ fontSize: 12, color: c.textDim }}>{expanded ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {/* Subject rows */}
+      {expanded && (
+        <div style={{ padding: "0 18px" }}>
+          {cls.subjects.map((sub) => (
+            <SubjectRow key={sub.subject} sub={sub} isMobile={isMobile} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Analytics component ─────────────────────────────────────────────────
 export default function Analytics({ isMobile, schoolRole }) {
   const [data, setData] = useState(null);
@@ -483,56 +566,27 @@ export default function Analytics({ isMobile, schoolRole }) {
           {/* Overview tab */}
           {tab === "overview" && (
             <>
-              {/* Strengths & Mistakes */}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 20 }}>
-                <div style={card}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: c.success, marginBottom: 10, letterSpacing: 0.5 }}>
-                    MOST COMMON STRENGTHS
-                  </div>
-                  <TopicList items={data.topStrengths} color={c.success} />
+              {/* Class → Subject breakdown */}
+              {data.classSubjectBreakdown?.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 20 }}>
+                  {data.classSubjectBreakdown.map((cls) => (
+                    <ClassCard key={cls.class} cls={cls} isMobile={isMobile} />
+                  ))}
                 </div>
-                <div style={card}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: c.danger, marginBottom: 10, letterSpacing: 0.5 }}>
-                    MOST COMMON MISTAKES
+              ) : (
+                /* Fallback: flat strengths/mistakes if no breakdown */
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 20 }}>
+                  <div style={card}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: c.success, marginBottom: 10, letterSpacing: 0.5 }}>
+                      MOST COMMON STRENGTHS
+                    </div>
+                    <TopicList items={data.topStrengths} color={c.success} />
                   </div>
-                  <TopicList items={data.topMistakes} color={c.danger} />
-                </div>
-              </div>
-
-              {/* Test performance table */}
-              {data.testStats?.length > 0 && (
-                <div style={card}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: c.textMid, marginBottom: 12, letterSpacing: 0.5 }}>
-                    TEST PERFORMANCE
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                    {data.testStats.map((t, i) => (
-                      <div key={t.id} style={{
-                        display: "flex", justifyContent: "space-between", alignItems: "center",
-                        padding: "10px 0",
-                        borderBottom: i < data.testStats.length - 1 ? `1px solid ${c.border}` : "none",
-                        gap: 12,
-                      }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {t.name}
-                          </div>
-                          <div style={{ fontSize: 11, color: c.textDim, marginTop: 2 }}>
-                            {t.subject && <span style={{ marginRight: 8 }}>{t.subject}</span>}
-                            {t.class && <span style={{ marginRight: 8 }}>Class {t.class}</span>}
-                            <span>{t.resultCount} sheet{t.resultCount !== 1 ? "s" : ""}</span>
-                          </div>
-                          {t.scoreDistribution && (
-                            <div style={{ marginTop: 5, width: isMobile ? "100%" : 160 }}>
-                              <DistBar dist={t.scoreDistribution} />
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ flexShrink: 0 }}>
-                          <ScoreBadge score={t.avgScore} />
-                        </div>
-                      </div>
-                    ))}
+                  <div style={card}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: c.danger, marginBottom: 10, letterSpacing: 0.5 }}>
+                      MOST COMMON MISTAKES
+                    </div>
+                    <TopicList items={data.topMistakes} color={c.danger} />
                   </div>
                 </div>
               )}

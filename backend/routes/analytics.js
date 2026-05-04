@@ -49,6 +49,39 @@ function buildTestStats(tests, allResults) {
   });
 }
 
+// Group tests by class → subject for the Overview breakdown
+function buildClassSubjectBreakdown(tests, allResults) {
+  const classMap = {};
+  for (const test of tests) {
+    const cls = test.class ? `Class ${test.class}` : "Unassigned";
+    const sub = test.subject || "General";
+    if (!classMap[cls]) classMap[cls] = {};
+    if (!classMap[cls][sub]) classMap[cls][sub] = { tests: [], results: [] };
+    const tr = allResults.filter((r) => r.test_id === test.id);
+    classMap[cls][sub].tests.push(test);
+    classMap[cls][sub].results.push(...tr);
+  }
+  // Sort classes numerically (Class 8, 9, 10…), subjects alphabetically
+  return Object.entries(classMap)
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([cls, subjects]) => ({
+      class: cls,
+      totalTests: Object.values(subjects).reduce((s, d) => s + d.tests.length, 0),
+      totalResults: Object.values(subjects).reduce((s, d) => s + d.results.length, 0),
+      avgScore: avgScore(Object.values(subjects).flatMap((d) => d.results)),
+      subjects: Object.entries(subjects)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([sub, data]) => ({
+          subject: sub,
+          testCount: data.tests.length,
+          resultCount: data.results.length,
+          avgScore: avgScore(data.results),
+          topStrengths: topItems(data.results, "strengths", 3),
+          topMistakes: topItems(data.results, "improvement_areas", 3),
+        })),
+    }));
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // GET /api/analytics/me
@@ -62,7 +95,7 @@ router.get("/me", requireSchool, async (req, res) => {
     // 1. Tests
     let testQuery = supabaseAdmin
       .from("analyzer_tests")
-      .select("id, name, subject, class, section, total_marks, created_at, teacher_id")
+      .select("id, name, subject, class, section, total_marks, created_at, teacher_id, created_by")
       .eq("school_id", school.id)
       .order("created_at", { ascending: false });
     if (!isOwner) testQuery = testQuery.eq("created_by", user.id);
@@ -125,6 +158,7 @@ router.get("/me", requireSchool, async (req, res) => {
       testStats: buildTestStats(tests || [], results),
       topStrengths: topItems(results, "strengths"),
       topMistakes: topItems(results, "improvement_areas"),
+      classSubjectBreakdown: buildClassSubjectBreakdown(tests || [], results),
       teacherStats,
     });
   } catch (err) {
