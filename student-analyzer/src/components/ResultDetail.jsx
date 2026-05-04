@@ -452,11 +452,11 @@ export default function ResultDetail({ params, navigate, isMobile }) {
         <div style={{ ...card, marginBottom: 12, border: `1px solid ${c.warning}40`, background: `${c.warning}08` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: c.warning, marginBottom: 8, letterSpacing: 0.5 }}>⚠ ANALYSIS PARSE ERROR</div>
           <div style={{ fontSize: 13, color: c.textMid, marginBottom: 10, lineHeight: 1.6 }}>
-            Claude returned a response that couldn't be parsed as JSON. Common causes: unreadable PDF, password-protected file, or the sheet was too blurry.
+            The AI returned a response that couldn't be parsed as JSON. Common causes: unreadable PDF, password-protected file, or the sheet was too blurry.
           </div>
           {analysis.raw && (
             <details>
-              <summary style={{ fontSize: 12, color: c.textDim, cursor: "pointer" }}>Show Claude's raw output</summary>
+              <summary style={{ fontSize: 12, color: c.textDim, cursor: "pointer" }}>Show raw AI output</summary>
               <pre style={{ fontSize: 11, color: c.textMid, background: c.bg, padding: "10px 12px", borderRadius: 8, marginTop: 8, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 300, overflowY: "auto", border: `1px solid ${c.border}` }}>
                 {analysis.raw}
               </pre>

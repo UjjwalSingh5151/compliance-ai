@@ -271,7 +271,7 @@ export default function PaperGenerator({ isMobile }) {
       {mode === "ai" && (
         <form onSubmit={handleGenerate} style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 32 }}>
           <div style={card}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: c.textMid, marginBottom: 12 }}>UPLOAD SAMPLE FORMAT <span style={{ color: c.textDim, fontWeight: 400 }}>(optional — Claude will follow its layout)</span></div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: c.textMid, marginBottom: 12 }}>UPLOAD SAMPLE FORMAT <span style={{ color: c.textDim, fontWeight: 400 }}>(optional — AI will follow its layout)</span></div>
             <FileZone label="Sample question paper" accept="PDF, JPG, PNG" file={formatFile} setFile={setFormatFile} required={false} />
           </div>
 
@@ -326,7 +326,7 @@ export default function PaperGenerator({ isMobile }) {
             <FileZone label="Handwritten question paper (to transcribe)" accept="JPG, PNG, PDF" file={handwrittenFile} setFile={setHandwrittenFile} required={true} />
           </div>
           <div style={{ fontSize: 12, color: c.textMid, background: c.card, padding: "10px 14px", borderRadius: 8, border: `1px solid ${c.border}` }}>
-            Claude will read every question from your handwritten paper and format it using the layout from your sample document.
+            AI will read every question from your handwritten paper and format it using the layout from your sample document.
           </div>
 
           {genError && <div style={{ fontSize: 13, color: c.danger, background: c.dangerDim, padding: "10px 14px", borderRadius: 8 }}>{genError}</div>}

@@ -172,7 +172,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
             <View style={styles.generatingBox}>
               <ActivityIndicator color={c.purple} />
               <Text style={styles.generatingText}>
-                Claude is writing your revision notes…{"\n"}This takes ~20 seconds.
+                Writing your revision notes…{"\n"}This takes ~20 seconds.
               </Text>
             </View>
           ) : notes ? (
@@ -192,7 +192,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
               <Text style={styles.emptyTabEmoji}>📝</Text>
               <Text style={styles.emptyTabTitle}>Revision Notes</Text>
               <Text style={styles.emptyTabText}>
-                Claude will read your exam results and write personalised revision notes
+                AI will read your exam results and write personalised revision notes
                 explaining every concept you missed — with memory tips and examples.
               </Text>
               <TouchableOpacity style={[styles.actionButton, { backgroundColor: `${c.purple}20`, borderColor: `${c.purple}50` }]} onPress={handleGenerateNotes}>
@@ -209,7 +209,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
             <View style={styles.generatingBox}>
               <ActivityIndicator color={c.success} />
               <Text style={styles.generatingText}>
-                {submitted ? "Submitting…" : "Claude is generating 8 practice questions…\nThis takes ~20 seconds."}
+                {submitted ? "Submitting…" : "Generating 8 practice questions…\nThis takes ~20 seconds."}
               </Text>
             </View>
           ) : submitted && practiceResult ? (
@@ -262,7 +262,7 @@ export default function StudentResultDetailScreen({ route, navigation }: any) {
               <Text style={styles.emptyTabEmoji}>🎯</Text>
               <Text style={styles.emptyTabTitle}>Practice Questions</Text>
               <Text style={styles.emptyTabText}>
-                Claude will generate 8 multiple-choice questions targeting
+                AI will generate 8 multiple-choice questions targeting
                 the specific concepts you got wrong in this test.
               </Text>
               <TouchableOpacity

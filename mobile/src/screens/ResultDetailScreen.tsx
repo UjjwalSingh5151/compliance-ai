@@ -464,7 +464,7 @@ export default function ResultDetailScreen({ route, navigation }: any) {
             <View style={[styles.section, { borderColor: `${c.warning}40` }]}>
               <Text style={[styles.sectionLabel, { color: c.warning }]}>⚠ PARSE WARNING</Text>
               <Text style={styles.bodyText}>
-                Claude could not fully read this sheet. Try retaking photos with better lighting
+                AI could not fully read this sheet. Try retaking photos with better lighting
                 and flat pages.
               </Text>
             </View>

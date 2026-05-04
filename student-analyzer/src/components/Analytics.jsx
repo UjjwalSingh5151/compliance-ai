@@ -152,7 +152,7 @@ function PlanModal({ data, onClose, isMobile }) {
           {!generated ? (
             <button style={{ ...btn.primary, width: "100%", opacity: loading ? 0.6 : 1 }}
               onClick={generate} disabled={loading}>
-              {loading ? "Generating with Claude…" : `Generate ${type === "revision" ? "Revision" : "Teaching"} Plan →`}
+              {loading ? "Generating…" : `Generate ${type === "revision" ? "Revision" : "Teaching"} Plan →`}
             </button>
           ) : (
             <div>

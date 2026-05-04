@@ -81,7 +81,7 @@ export default function NewTest({ navigate, isMobile }) {
       </button>
       <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700, color: c.text, marginBottom: 4 }}>New Test</h1>
       <p style={{ fontSize: 13, color: c.textMid, marginBottom: 20 }}>
-        Upload the question paper — Claude will auto-fill the details for you.
+        Upload the question paper — AI will auto-fill the details for you.
       </p>
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -108,7 +108,7 @@ export default function NewTest({ navigate, isMobile }) {
               onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = c.border; handlePaperFile(e.dataTransfer.files[0] || null); }}>
               <div style={{ fontSize: 22, marginBottom: 6 }}>☁️</div>
               <div style={{ fontSize: 13, color: c.textMid }}>Tap to upload or drag & drop</div>
-              <div style={{ fontSize: 11, color: c.textDim, marginTop: 3 }}>PDF, JPG, PNG — Claude will extract test details automatically</div>
+              <div style={{ fontSize: 11, color: c.textDim, marginTop: 3 }}>PDF, JPG, PNG — AI will extract test details automatically</div>
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" style={{ display: "none" }}
                 onChange={(e) => handlePaperFile(e.target.files[0] || null)} />
             </div>

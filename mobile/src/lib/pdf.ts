@@ -15,7 +15,7 @@ export interface PhotoPage {
 }
 
 /**
- * Compress a photo to a reasonable size for Claude (1200px wide, 0.85 quality).
+ * Compress a photo to a reasonable size for AI upload (1200px wide, 0.85 quality).
  * Reduces a typical 4K phone photo from ~8MB to ~300KB.
  */
 async function compressPhoto(uri: string): Promise<string> {

@@ -210,7 +210,7 @@ export default function BulkUpload({ params, navigate, isMobile }) {
                 {item.status === "done" && item.analysis?.parse_error && (
                   <div style={{ marginTop: 6 }}>
                     <div style={{ fontSize: 12, color: c.warning, marginBottom: 6 }}>
-                      ⚠ Claude's response could not be parsed — the PDF may be unreadable or encrypted.
+                      ⚠ AI response could not be parsed — the PDF may be unreadable or encrypted.
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
                       {item.resultId && (
@@ -221,7 +221,7 @@ export default function BulkUpload({ params, navigate, isMobile }) {
                     </div>
                     {item.analysis.raw && (
                       <details style={{ marginTop: 4 }}>
-                        <summary style={{ fontSize: 11, color: c.textDim, cursor: "pointer" }}>Show Claude's output</summary>
+                        <summary style={{ fontSize: 11, color: c.textDim, cursor: "pointer" }}>Show raw AI output</summary>
                         <pre style={{ fontSize: 10, color: c.textMid, background: c.bg, padding: "8px 10px", borderRadius: 6, marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 200, overflowY: "auto" }}>
                           {item.analysis.raw}
                         </pre>

@@ -245,7 +245,7 @@ export const api = {
 
       xhr.onerror = () => reject(new Error(`Network error (status ${xhr.status})`));
       xhr.ontimeout = () => reject(new Error("Request timed out"));
-      xhr.timeout = 5 * 60 * 1000; // 5 min — Claude can be slow
+      xhr.timeout = 5 * 60 * 1000; // 5 min — AI grading can be slow
 
       xhr.send(formData);
     });
