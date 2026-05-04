@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { photosToPDF, PhotoPage } from "../lib/pdf";
 import { api } from "../lib/api";
 import { shareUrl } from "../lib/branding";
@@ -30,6 +31,8 @@ type Step = "capture" | "copies" | "uploading" | "results";
 interface Copy {
   id: string;
   pages: PhotoPage[];
+  pdfUri?:  string;   // set when copy was added via PDF upload (skips photosToPDF)
+  pdfName?: string;   // original filename, shown in the queue
 }
 
 interface ScanResult {
@@ -168,6 +171,29 @@ export default function ScanScreen({ route, navigation }: any) {
     }
   };
 
+  /** Pick one or more PDF files — each becomes a separate copy in the queue */
+  const pickPDF = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const newCopies: Copy[] = result.assets.map((asset, idx) => ({
+        id: `${Date.now()}-pdf-${idx}`,
+        pages: [],
+        pdfUri:  asset.uri,
+        pdfName: asset.name,
+      }));
+      setCopies((prev) => [...prev, ...newCopies]);
+      setStep("copies");
+    } catch (e: any) {
+      logError(e.message, "ScanScreen:pickPDF");
+      Alert.alert("PDF picker error", e.message);
+    }
+  };
+
   /** Finish scanning current copy → add to queue (or update if editing) */
   const finishCopy = () => {
     if (!currentPages.length) return;
@@ -203,10 +229,19 @@ export default function ScanScreen({ route, navigation }: any) {
       const copy = queue[i];
       setProgress(`Preparing copy ${i + 1} of ${queue.length}…`);
       try {
-        const pdfUri = await photosToPDF(copy.pages, (cur, tot) => {
-          setProgress(`Copy ${i + 1}/${queue.length} — page ${cur}/${tot}…`);
-        });
-        const filename = `scan-c${i + 1}-${Date.now()}.pdf`;
+        // PDF copies are uploaded directly; photo copies are converted first
+        let pdfUri: string;
+        let filename: string;
+        if (copy.pdfUri) {
+          pdfUri   = copy.pdfUri;
+          filename = copy.pdfName || `pdf-c${i + 1}-${Date.now()}.pdf`;
+          setProgress(`Uploading PDF ${i + 1} of ${queue.length}…`);
+        } else {
+          pdfUri = await photosToPDF(copy.pages, (cur, tot) => {
+            setProgress(`Copy ${i + 1}/${queue.length} — page ${cur}/${tot}…`);
+          });
+          filename = `scan-c${i + 1}-${Date.now()}.pdf`;
+        }
         setProgress(`Analyzing copy ${i + 1} of ${queue.length}…`);
 
         await api.analyzeSheet(test.id, pdfUri, filename, (event: any) => {
@@ -319,6 +354,13 @@ export default function ScanScreen({ route, navigation }: any) {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* PDF upload shortcut — shown when not in edit mode */}
+        {!isEditing && (
+          <TouchableOpacity style={styles.uploadPdfLink} onPress={pickPDF}>
+            <Text style={styles.uploadPdfLinkText}>📄 Upload PDF instead</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -350,34 +392,42 @@ export default function ScanScreen({ route, navigation }: any) {
           contentContainerStyle={{ padding: 12 }}
           renderItem={({ item, index }) => (
             <View style={styles.copyCard}>
-              {/* First page thumb */}
-              <Image
-                source={{ uri: item.pages[0].uri }}
-                style={styles.copyThumb}
-              />
+              {/* Thumbnail — PDF icon for PDF copies, first page for photo copies */}
+              {item.pdfUri ? (
+                <View style={[styles.copyThumb, styles.pdfThumbBox]}>
+                  <Text style={styles.pdfThumbIcon}>📄</Text>
+                </View>
+              ) : (
+                <Image source={{ uri: item.pages[0]?.uri }} style={styles.copyThumb} />
+              )}
               {/* Info */}
               <View style={{ flex: 1 }}>
                 <Text style={styles.copyCardTitle}>Copy {index + 1}</Text>
                 <Text style={styles.copyCardMeta}>
-                  {item.pages.length} page{item.pages.length !== 1 ? "s" : ""}
+                  {item.pdfUri
+                    ? item.pdfName || "PDF file"
+                    : `${item.pages.length} page${item.pages.length !== 1 ? "s" : ""}`}
                 </Text>
-                {/* Row of small thumbs */}
-                <View style={styles.copyMiniStrip}>
-                  {item.pages.slice(0, 5).map((p, pi) => (
-                    <Image key={pi} source={{ uri: p.uri }} style={styles.copyMiniThumb} />
-                  ))}
-                  {item.pages.length > 5 && (
-                    <View style={styles.copyMiniMore}>
-                      <Text style={styles.copyMiniMoreText}>+{item.pages.length - 5}</Text>
-                    </View>
-                  )}
-                </View>
+                {/* Row of small thumbs — only for photo copies */}
+                {!item.pdfUri && (
+                  <View style={styles.copyMiniStrip}>
+                    {item.pages.slice(0, 5).map((p, pi) => (
+                      <Image key={pi} source={{ uri: p.uri }} style={styles.copyMiniThumb} />
+                    ))}
+                    {item.pages.length > 5 && (
+                      <View style={styles.copyMiniMore}>
+                        <Text style={styles.copyMiniMoreText}>+{item.pages.length - 5}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
               {/* Edit / Delete */}
               <View style={{ gap: 8, alignItems: "center" }}>
                 <TouchableOpacity
-                  style={styles.copyEditBtn}
-                  onPress={() => editCopy(item)}
+                  style={[styles.copyEditBtn, item.pdfUri && { opacity: 0.25 }]}
+                  onPress={() => { if (!item.pdfUri) editCopy(item); }}
+                  disabled={!!item.pdfUri}
                 >
                   <Text style={styles.copyEditText}>✏️</Text>
                 </TouchableOpacity>
@@ -393,12 +443,21 @@ export default function ScanScreen({ route, navigation }: any) {
         />
 
         <View style={styles.copiesFooter}>
-          <TouchableOpacity
-            style={styles.addCopyBtn}
-            onPress={() => setStep("capture")}
-          >
-            <Text style={styles.addCopyBtnText}>+ Add Another Copy</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.addCopyBtn, { flex: 1 }]}
+              onPress={() => setStep("capture")}
+            >
+              <Text style={styles.addCopyBtnText}>📷 Add Copy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.addCopyBtn, { flex: 1 }]}
+              onPress={pickPDF}
+            >
+              <Text style={styles.addCopyBtnText}>📄 Upload PDF</Text>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             style={[styles.analyzeAllBtn, copies.length === 0 && { opacity: 0.35 }]}
@@ -498,6 +557,8 @@ const styles = StyleSheet.create({
   copiesHint:      { fontSize: 12, color: c.textDim, marginTop: 2 },
   copyCard:        { flexDirection: "row", backgroundColor: c.card, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: c.border, alignItems: "center", gap: 12 },
   copyThumb:       { width: 56, height: 72, borderRadius: 6 },
+  pdfThumbBox:     { backgroundColor: `${c.accent}15`, borderWidth: 1, borderColor: `${c.accent}30`, alignItems: "center", justifyContent: "center" },
+  pdfThumbIcon:    { fontSize: 26 },
   copyCardTitle:   { fontSize: 14, fontWeight: "700", color: c.text },
   copyCardMeta:    { fontSize: 12, color: c.textMid, marginTop: 2 },
   copyMiniStrip:   { flexDirection: "row", gap: 3, marginTop: 6 },
@@ -537,4 +598,6 @@ const styles = StyleSheet.create({
   secondaryBtn:    { backgroundColor: c.card, borderRadius: 10, padding: 16, alignItems: "center", borderWidth: 1, borderColor: c.border },
   secondaryBtnText:{ color: c.accent, fontWeight: "700", fontSize: 14 },
   permText:        { fontSize: 14, color: c.text, textAlign: "center", paddingHorizontal: 32, marginBottom: 20 },
+  uploadPdfLink:   { alignItems: "center", paddingVertical: 12, paddingBottom: 20 },
+  uploadPdfLinkText:{ fontSize: 13, color: c.accent, fontWeight: "600", opacity: 0.8 },
 });
