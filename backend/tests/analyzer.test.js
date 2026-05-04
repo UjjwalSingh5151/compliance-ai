@@ -67,6 +67,7 @@ vi.mock("../lib/shared.js", () => ({
   getRequestUser:      vi.fn().mockResolvedValue(null),
   getUserSchool:       vi.fn().mockResolvedValue(null),
   getPDFPageCount:     vi.fn().mockReturnValue(1),
+  checkCredits:        vi.fn().mockResolvedValue({ ok: true }),
   deductCredits:       vi.fn().mockResolvedValue({ ok: true }),
 }));
 
