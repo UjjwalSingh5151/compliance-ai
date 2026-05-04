@@ -457,6 +457,26 @@ router.get("/results/:id", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// DELETE /tests/:id — deletes test + all its results (CASCADE)
+router.delete("/tests/:id", async (req, res) => {
+  try {
+    if (!supabaseAdmin) return res.json({ ok: true });
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { data: test } = await supabaseAdmin
+      .from("analyzer_tests").select("id, created_by, school_id").eq("id", req.params.id).single();
+    if (!test) return res.status(404).json({ error: "Test not found" });
+    // Only the creator or school owner can delete
+    const schoolInfo = await getUserSchool(user.id, user.email);
+    const isOwner = schoolInfo?.role === "owner";
+    const isCreator = test.created_by === user.id;
+    if (!isOwner && !isCreator) return res.status(403).json({ error: "Not authorized to delete this test" });
+    const { error } = await supabaseAdmin.from("analyzer_tests").delete().eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // DELETE /results/:id
 router.delete("/results/:id", async (req, res) => {
   try {
