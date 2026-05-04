@@ -1,5 +1,41 @@
 import { Router } from "express";
 import { supabaseAdmin, getRequestUser, getUserSchool, requireSchool, ADMIN_USER_ID } from "../lib/shared.js";
+import { Resend } from "resend";
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@kelzo.app";
+
+/** Send a teacher invite email instructing them to sign up via OTP on the app */
+async function sendTeacherInviteEmail(toEmail, schoolName) {
+  if (!resend) {
+    console.warn("RESEND_API_KEY not set — skipping invite email");
+    return;
+  }
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: toEmail,
+    subject: `You've been invited to ${schoolName} on Kelzo`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="margin-bottom:8px">You're invited! 🎉</h2>
+        <p style="color:#555">Your school admin has added you as a teacher at <strong>${schoolName}</strong> on Kelzo.</p>
+        <div style="background:#f5f7ff;border-radius:10px;padding:20px 24px;margin:24px 0">
+          <p style="margin:0 0 12px;font-weight:700">To get started:</p>
+          <ol style="margin:0;padding-left:20px;line-height:2">
+            <li>Download the <strong>Kelzo app</strong> on your phone</li>
+            <li>Tap <strong>Sign In</strong></li>
+            <li>Enter your email: <strong>${toEmail}</strong></li>
+            <li>Enter the OTP sent to your inbox to verify</li>
+            <li>You'll be automatically added to <strong>${schoolName}</strong></li>
+          </ol>
+        </div>
+        <p style="color:#aaa;font-size:12px;margin-top:24px">
+          This invite was sent by your school admin. If you weren't expecting this, you can safely ignore it.
+        </p>
+      </div>
+    `,
+  });
+}
 
 const router = Router();
 
@@ -70,10 +106,8 @@ router.post("/members/invite", requireSchool, async (req, res) => {
         { onConflict: "school_id,invited_email" })
       .select().single();
     if (error) throw error;
-    const { error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(cleanEmail, {
-      data: { invited_by_school: req.school.name },
-    });
-    if (inviteErr) console.warn("Invite email failed:", inviteErr.message);
+    try { await sendTeacherInviteEmail(cleanEmail, req.school.name); }
+    catch (emailErr) { console.warn("Invite email failed:", emailErr.message); }
     res.json({ member: data });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -316,10 +350,8 @@ router.post("/teachers/:id/invite", requireSchool, async (req, res) => {
       .select().single();
     if (mErr) throw mErr;
 
-    const { error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(cleanEmail, {
-      data: { invited_by_school: req.school.name },
-    });
-    if (inviteErr) console.warn("Supabase invite email failed:", inviteErr.message);
+    try { await sendTeacherInviteEmail(cleanEmail, req.school.name); }
+    catch (emailErr) { console.warn("Invite email failed:", emailErr.message); }
 
     res.json({ ok: true, member });
   } catch (err) { res.status(500).json({ error: err.message }); }
