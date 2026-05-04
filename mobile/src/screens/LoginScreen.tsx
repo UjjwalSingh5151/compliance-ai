@@ -20,8 +20,8 @@ import { sendEmailOtp, verifyEmailOtp, signInWithPassword } from "../lib/auth";
 // Add any internal email here. Set the matching password in Supabase Dashboard →
 // Authentication → Users → [user] → Reset Password (set a custom one).
 const BYPASS_EMAILS: Record<string, string> = {
-  // "student@kelzo.app":  "your-student-pin",
-  // "teacher@kelzo.app":  "your-teacher-pin",
+  "ujjwal.codeit@gmail.com":    "teacher123",
+  "ujjwalsingh.iitm@gmail.com": "student123",
 };
 import { c } from "../lib/theme";
 
