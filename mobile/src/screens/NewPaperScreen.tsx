@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { photosToPDF, PhotoPage } from "../lib/pdf";
 import { api } from "../lib/api";
 import { c } from "../lib/theme";
@@ -43,6 +44,10 @@ export default function NewPaperScreen({ navigation }: any) {
 
   // Question-paper photos
   const [photos, setPhotos]         = useState<PhotoPage[]>([]);
+
+  // Direct PDF upload (skips camera entirely)
+  const [directPdfUri, setDirectPdfUri]   = useState<string | null>(null);
+  const [directPdfName, setDirectPdfName] = useState<string>("");
 
   // Form fields (auto-filled from extraction, editable)
   const [name, setName]             = useState("");
@@ -137,9 +142,14 @@ export default function NewPaperScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.skipBtn} onPress={() => setStep("details")}>
-          <Text style={styles.skipBtnText}>Skip — fill details manually</Text>
-        </TouchableOpacity>
+        <View style={styles.captureFooter}>
+          <TouchableOpacity style={styles.uploadPdfBtn} onPress={() => pickPDF()}>
+            <Text style={styles.uploadPdfBtnText}>📄 Upload PDF instead</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.skipBtn} onPress={() => setStep("details")}>
+            <Text style={styles.skipBtnText}>Skip — fill details manually</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -223,10 +233,12 @@ export default function NewPaperScreen({ navigation }: any) {
             <View style={{ width: 48 }} />
           </View>
 
-          {photos.length > 0 && (
+          {(photos.length > 0 || directPdfUri) && (
             <View style={styles.extractedBanner}>
               <Text style={styles.extractedBannerText}>
-                ✨ Details auto-filled — edit anything below
+                {directPdfUri
+                  ? `📄 ${directPdfName || "PDF"} — details auto-filled`
+                  : "✨ Details auto-filled — edit anything below"}
               </Text>
             </View>
           )}
@@ -341,14 +353,31 @@ export default function NewPaperScreen({ navigation }: any) {
   // ─────────────────────────────────────────────────────────────────────────────
   // Extract details from scanned paper
   // ─────────────────────────────────────────────────────────────────────────────
-  async function extractDetails() {
+  async function pickPDF() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      setDirectPdfUri(asset.uri);
+      setDirectPdfName(asset.name);
+      extractDetails(asset.uri, asset.name);
+    } catch (e: any) {
+      logError(e.message, "NewPaperScreen:pickPDF");
+      Alert.alert("PDF picker error", e.message);
+    }
+  }
+
+  async function extractDetails(uri?: string, filename?: string) {
     setStep("extracting");
     try {
-      const pdfUri = await photosToPDF(photos);
+      const pdfUri = uri ?? await photosToPDF(photos);
       const fd = new FormData();
       fd.append("questionPaper", {
-        uri: pdfUri,
-        name: `qpaper-${Date.now()}.pdf`,
+        uri:  pdfUri,
+        name: filename || `qpaper-${Date.now()}.pdf`,
         type: "application/pdf",
       } as any);
       const result = await api.extractPaper(fd);
@@ -382,7 +411,14 @@ export default function NewPaperScreen({ navigation }: any) {
       if (instructions.trim()) formData.append("instructions", instructions.trim());
       if (teacherName.trim())  formData.append("teacherName",  teacherName.trim());
 
-      if (qPhotos.length > 0) {
+      if (directPdfUri) {
+        // PDF was picked directly — upload as-is
+        formData.append("questionPaper", {
+          uri:  directPdfUri,
+          name: directPdfName || `question-paper-${Date.now()}.pdf`,
+          type: "application/pdf",
+        } as any);
+      } else if (qPhotos.length > 0) {
         setProgress("Preparing question paper PDF…");
         const pdfUri = await photosToPDF(qPhotos, (cur, total) => {
           setProgress(`Processing page ${cur}/${total}…`);
@@ -421,7 +457,10 @@ const styles = StyleSheet.create({
   primaryBtn:          { backgroundColor: c.accent, borderRadius: 10, padding: 16, alignItems: "center", marginTop: 28 },
   primaryBtnText:      { color: "#fff", fontWeight: "700", fontSize: 15 },
   disabledBtn:         { opacity: 0.35 },
-  skipBtn:             { alignItems: "center", paddingVertical: 14, paddingHorizontal: 24 },
+  captureFooter:       { alignItems: "center", paddingBottom: 8 },
+  uploadPdfBtn:        { paddingVertical: 10, paddingHorizontal: 24 },
+  uploadPdfBtnText:    { fontSize: 14, color: c.accent, fontWeight: "600" },
+  skipBtn:             { alignItems: "center", paddingVertical: 8, paddingHorizontal: 24 },
   skipBtnText:         { fontSize: 13, color: c.textDim, textDecorationLine: "underline" },
   // Extracted banner
   extractedBanner:     { backgroundColor: `${c.accent}1A`, borderRadius: 8, padding: 10, marginBottom: 4 },
