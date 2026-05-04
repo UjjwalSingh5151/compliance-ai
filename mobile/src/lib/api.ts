@@ -270,6 +270,8 @@ export const api = {
     request<{ ok: boolean }>(`/api/analyzer/tests/${id}`, { method: "DELETE" }),
   deleteResult: (id: string) =>
     request<{ ok: boolean }>(`/api/analyzer/results/${id}`, { method: "DELETE" }),
+  createStudent: (data: { name: string; roll_no?: string; class?: string; section?: string }) =>
+    request<{ student: Student }>("/api/school/students", { method: "POST", body: JSON.stringify(data) }),
 
   // Test results
   getTestResults: (testId: string) =>
