@@ -1,11 +1,10 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, SectionList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, ScrollView,
+  RefreshControl, ActivityIndicator, Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { api, LearningFingerprint } from "../lib/api";
-import { signOut } from "../lib/auth";
 import { c } from "../lib/theme";
 
 export default function StudentHomeScreen({ navigation }: any) {
@@ -137,23 +136,6 @@ export default function StudentHomeScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* Stats */}
-      {totalResults > 0 && (
-        <View style={styles.statsRow}>
-          <StatItem label="Tests taken" value={`${totalResults}`} />
-          <View style={styles.statDivider} />
-          <StatItem
-            label="Average score" value={`${avgPct}%`}
-            color={avgPct >= 75 ? c.success : avgPct >= 40 ? c.warning : c.danger}
-          />
-        </View>
-      )}
-
-      {/* Analytics panel — shown whenever there are results */}
-      {totalResults > 0 && (
-        <PerformancePanel results={allResults} fingerprint={fingerprint} />
-      )}
-
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={c.accent} />
       ) : sections.length === 0 ? (
@@ -178,6 +160,26 @@ export default function StudentHomeScreen({ navigation }: any) {
               onRefresh={() => { setRefreshing(true); load(true); }}
               tintColor={c.accent}
             />
+          }
+          ListHeaderComponent={
+            <>
+              {/* Stats row — pulled to full width, flush with screen edges */}
+              <View style={[styles.statsRow, { marginHorizontal: -16, marginTop: -16 }]}>
+                <StatItem label="Tests taken" value={`${totalResults}`} />
+                <View style={styles.statDivider} />
+                <StatItem
+                  label="Average score" value={`${avgPct}%`}
+                  color={avgPct >= 75 ? c.success : avgPct >= 40 ? c.warning : c.danger}
+                />
+              </View>
+              {/* Analytics panel */}
+              <PerformancePanel results={allResults} fingerprint={fingerprint} />
+              {/* Results label */}
+              <View style={styles.resultsSectionLabel}>
+                <Text style={styles.sectionHeaderText}>MY RESULTS</Text>
+                <Text style={styles.sectionCount}>{totalResults} test{totalResults !== 1 ? "s" : ""}</Text>
+              </View>
+            </>
           }
         />
       )}
@@ -391,7 +393,7 @@ function PerformancePanel({ results, fingerprint }: {
 }
 
 const fpStyles = StyleSheet.create({
-  panel:         { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, margin: 16, marginBottom: 0, padding: 14 },
+  panel:         { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, marginTop: 14, marginBottom: 0, padding: 14 },
   panelTitle:    { fontSize: 14, fontWeight: "700", color: c.text, marginBottom: 14 },
   section:       { marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: c.border },
   sectionLabel:  { fontSize: 10, fontWeight: "700", color: c.textDim, letterSpacing: 0.8, marginBottom: 10 },
@@ -490,6 +492,8 @@ const styles = StyleSheet.create({
   actionBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingVertical: 7 },
   actionIcon:        { fontSize: 14 },
   actionLabel:       { fontSize: 12, fontWeight: "700" },
+  // Results section label (inside ListHeaderComponent)
+  resultsSectionLabel: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 22, marginBottom: 4 },
   // Empty
   empty:             { alignItems: "center", paddingTop: 80, paddingHorizontal: 32 },
   emptyEmoji:        { fontSize: 48, marginBottom: 16 },
